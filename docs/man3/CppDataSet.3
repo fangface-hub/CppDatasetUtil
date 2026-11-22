@@ -1,0 +1,126 @@
+.\" -*- coding: UTF-8 -*-
+.TH CppDataSet 3 "" "CppDatasetUtil" "Library Functions"
+.SH NAME
+CppDataSet \- recursive Dataset value with optional comments
+.SH SYNOPSIS
+.nf
+.B #include <Dataset.h>
+.B class Dataset;
+.fi
+.SH DESCRIPTION
+Dataset holds null, bool, a signed 64-bit integer, double, string, map or
+array. Map and array elements are also Dataset values. Each value may have
+its own comments. Maps are sorted by key and arrays preserve their order.
+Copying and moving preserve both values and comments.
+.SH TYPES AND CONSTRUCTORS
+.B Dataset::Map
+is std::map<std::string, Dataset>,
+.B Dataset::Array
+is std::vector<Dataset>, and
+.B Dataset::Value
+is a std::variant of the supported types. The default constructor creates null
+without comments. Constructors also accept nullptr, bool, int, std::int64_t,
+double, const char*, std::string, Map and Array. A null const char* throws
+std::invalid_argument.
+.SH ACCESS
+.TP
+.B operator[](const std::string& key)
+Accesses a map entry. A mutable null value becomes an empty map, and a
+missing key is inserted with a null value. The parent value's comments are
+preserved. Const access changes nothing and throws std::out_of_range if the
+key is missing. Access to a non-map value throws std::logic_error.
+.TP
+.B operator[](std::size_t index)
+Accesses an array element without inserting it. Indices start at zero. A
+non-array value throws std::logic_error; an out-of-range index throws
+std::out_of_range. Replacing the parent Dataset invalidates references to
+its elements.
+.TP
+.B value() const noexcept
+Returns a const reference to Value. On a type mismatch, std::get throws
+std::bad_variant_access and std::get_if returns a null pointer.
+.SH COMMENTS
+.TP
+.B comments() const noexcept
+Returns a const reference to the comments in their stored order.
+.TP
+.B set_comments(std::vector<std::string> comments)
+Replaces the comments. Specify text without a leading #; embedded line breaks
+produce multiple comment lines. YAML and TOML require valid UTF-8 and reject
+unsupported control characters and Unicode line separators. TOML comments
+that cannot be placed syntactically are omitted. CSV and JSON do not save
+comments. Assignment or a successful Load also replaces existing comments.
+.SH FILES
+.TP
+.B Load(const std::string& path)
+Loads CSV, JSON, YAML or TOML based on the case-insensitive extension .csv,
+\&.json, .yaml, .yml or .toml. Comments are not loaded. Success replaces the
+value and comments; failure leaves the Dataset unchanged. I/O errors, invalid
+input, and unsupported extensions or values throw std::runtime_error.
+.TP
+.B "static LoadDirectory(const std::string& path, bool recursive = false)"
+Returns a std::list of path and Dataset pairs sorted by path. Subdirectories
+are traversed only when recursive=true. Unsupported extensions are ignored.
+Symbolic links to files and directories are followed; a target reached by
+multiple paths is loaded once per path. Returned paths retain the supplied
+directory and link names. A file link's own extension determines its format.
+Cycles, broken links, unreadable entries and failed files are skipped with a
+warning on stderr. A starting directory that cannot be opened throws
+std::runtime_error. Comments are not loaded.
+.TP
+.B Save(const std::string& path) const
+Saves according to the extension. CSV requires an array of nonempty maps
+with identical keys and string values; an empty array produces an empty file.
+The TOML root must be a map and null is unsupported. Non-finite floating-point
+numbers cannot be saved. YAML and TOML save representable comments.
+Serialization precedes opening the file, but a write error can leave it
+truncated or incomplete. I/O errors, unsupported extensions, and values or
+comments that cannot be represented throw std::runtime_error.
+.PP
+CSV uses the first row as column names and loads each subsequent row as a
+map of strings. Duplicate names and inconsistent field counts are errors.
+YAML resolves supported core scalars and rejects multiple documents, duplicate
+anchors, recursive aliases and unsupported tags. TOML date/time values and
+non-finite numbers cannot be loaded.
+.SH EXAMPLE
+.nf
+#include <Dataset.h>
+#include <string>
+#include <variant>
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto& host = std::get<std::string>(
+    loaded["server"]["host"].value());
+.fi
+.SH DATA-DRIVEN TESTING
+Run the following GoogleTest example from the project root. It loads the two
+files in Tests/data/nested-values and compares each case's input and expected
+host. The file-count and nonempty-case checks help detect skipped data files.
+.nf
+#include <gtest/gtest.h>
+#include "Dataset.h"
+
+TEST(Example, NestedValues) {
+  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto& [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto& cases = std::get<Dataset::Array>(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (const auto& item : cases) {
+      const Dataset& input = item["input"];
+      const Dataset& expected = item["expected"];
+      Dataset result;
+      result["host"] = std::get<std::string>(input["host"].value());
+      EXPECT_EQ(std::get<std::string>(result["host"].value()),
+                std::get<std::string>(expected["host"].value()));
+    }
+  }
+}
+.fi
+.SH SEE ALSO
+See README.md in the project for further format restrictions.

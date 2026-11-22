@@ -1,0 +1,133 @@
+.\" -*- coding: UTF-8 -*-
+.TH CppDataSet 3 "" "CppDatasetUtil" "Bibliotheksfunktionen"
+.SH NAME
+CppDataSet \- rekursiver Dataset-Wert mit optionalen Kommentaren
+.SH ÜBERSICHT
+.nf
+.B #include <Dataset.h>
+.B class Dataset;
+.fi
+.SH BESCHREIBUNG
+Dataset enthält null, bool, eine vorzeichenbehaftete 64-Bit-Ganzzahl,
+double, eine Zeichenkette, eine Map oder ein Array. Map- und Array-Elemente
+sind ebenfalls Dataset-Werte. Jeder Wert kann eigene Kommentare tragen.
+Maps sind nach Schlüsseln sortiert, Arrays behalten ihre Reihenfolge.
+Kopieren und Verschieben übernehmen sowohl Werte als auch Kommentare.
+.SH TYPEN UND KONSTRUKTOREN
+.B Dataset::Map
+ist std::map<std::string, Dataset>,
+.B Dataset::Array
+ist std::vector<Dataset> und
+.B Dataset::Value
+ist eine std::variant der unterstützten Typen.
+Der Standardkonstruktor erzeugt null ohne Kommentare. Konstruktoren akzeptieren
+nullptr, bool, int, std::int64_t, double, const char*, std::string, Map und
+Array. Ein null-Zeiger für const char* führt zu std::invalid_argument.
+.SH ZUGRIFF
+.TP
+.B operator[](const std::string& key)
+Greift auf einen Map-Eintrag zu. Bei einem veränderbaren null-Wert wird eine
+leere Map erzeugt; ein fehlender Schlüssel wird mit null eingefügt.
+Kommentare des übergeordneten Werts bleiben erhalten. Const-Zugriff ändert
+nichts und wirft std::out_of_range bei fehlendem Schlüssel. Ein Wert, der
+keine Map ist, führt zu std::logic_error.
+.TP
+.B operator[](std::size_t index)
+Greift auf ein Array-Element zu, ohne es einzufügen. Der Index beginnt bei 0.
+Ein anderer Typ führt zu std::logic_error, ein ungültiger Index zu
+std::out_of_range. Ersetzen des übergeordneten Dataset macht Referenzen auf
+seine Elemente ungültig.
+.TP
+.B value() const noexcept
+Liefert eine const-Referenz auf Value. std::get wirft bei falschem Typ
+std::bad_variant_access; std::get_if liefert dann einen null-Zeiger.
+.SH KOMMENTARE
+.TP
+.B comments() const noexcept
+Liefert eine const-Referenz auf die Kommentare in gespeicherter Reihenfolge.
+.TP
+.B set_comments(std::vector<std::string> comments)
+Ersetzt die Kommentare. Text wird ohne führendes # angegeben; Zeilenumbrüche
+erzeugen mehrere Kommentarzeilen. YAML und TOML verlangen gültiges UTF-8 und
+weisen nicht unterstützte Steuerzeichen und Unicode-Zeilentrenner zurück.
+In TOML syntaktisch nicht darstellbare Kommentare werden ausgelassen.
+CSV und JSON speichern keine Kommentare. Zuweisung und erfolgreiches Load
+ersetzen vorhandene Kommentare.
+.SH DATEIEN
+.TP
+.B Load(const std::string& path)
+Lädt CSV, JSON, YAML oder TOML anhand der Erweiterung .csv, .json, .yaml,
+\&.yml oder .toml, unabhängig von Groß- und Kleinschreibung. Kommentare werden
+nicht eingelesen. Erfolg ersetzt Wert und Kommentare; bei Fehlern bleibt das
+Dataset unverändert. E/A-Fehler, ungültige Eingaben und nicht unterstützte
+Erweiterungen oder Werte führen zu std::runtime_error.
+.TP
+.B "static LoadDirectory(const std::string& path, bool recursive = false)"
+Liefert eine nach Pfad sortierte std::list von Paaren aus Pfad und Dataset.
+Unterverzeichnisse werden nur bei recursive=true durchsucht. Nicht unterstützte
+Erweiterungen werden ignoriert. Symbolischen Links auf Dateien und Verzeichnisse
+wird gefolgt; dasselbe Ziel wird für jeden erreichbaren Pfad geladen. Die
+zurückgegebenen Pfade behalten die angegebenen Verzeichnis- und Linknamen.
+Bei Dateilinks bestimmt die Erweiterung des Links das Format. Zyklen, defekte
+Links, unlesbare Einträge und fehlgeschlagene Dateien werden mit einer Warnung
+auf stderr übersprungen. Ein nicht zu öffnendes Startverzeichnis führt zu
+std::runtime_error. Kommentare werden nicht geladen.
+.TP
+.B Save(const std::string& path) const
+Speichert anhand der Erweiterung. CSV verlangt ein Array nicht leerer Maps mit
+gleichen Schlüsseln und Zeichenkettenwerten; ein leeres Array ergibt eine leere
+Datei. TOML verlangt eine Map als Wurzel und unterstützt kein null.
+Nicht endliche Gleitkommazahlen können nicht gespeichert werden. YAML und TOML
+speichern darstellbare Kommentare. Serialisiert wird vor dem Öffnen; ein
+E/A-Fehler beim Schreiben kann eine abgeschnittene oder unvollständige Datei
+hinterlassen. E/A-Fehler und nicht darstellbare Werte oder Kommentare führen
+wie nicht unterstützte Erweiterungen zu std::runtime_error.
+.PP
+CSV verwendet die erste Zeile als Spaltennamen und speichert jede weitere
+Zeile als Map von Zeichenketten. Doppelte Namen und unterschiedliche
+Spaltenzahlen sind Fehler. YAML löst unterstützte Basisskalare auf und
+verwirft mehrere Dokumente, doppelte Anker, rekursive Aliase und unbekannte
+Tags. TOML-Datums-/Zeitwerte und nicht endliche Zahlen werden nicht geladen.
+.SH BEISPIEL
+.nf
+#include <Dataset.h>
+#include <string>
+#include <variant>
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto& host = std::get<std::string>(
+    loaded["server"]["host"].value());
+.fi
+.SH DATENGETRIEBENE TESTS
+Dieses GoogleTest-Beispiel wird im Projektverzeichnis ausgeführt. Es lädt die
+zwei Dateien in Tests/data/nested-values und vergleicht pro Fall den Host aus
+input und expected. Die Prüfungen der Dateianzahl und der nicht leeren Fälle
+helfen, übersprungene Datendateien zu erkennen.
+.nf
+#include <gtest/gtest.h>
+#include "Dataset.h"
+
+TEST(Example, NestedValues) {
+  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto& [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto& cases = std::get<Dataset::Array>(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (const auto& item : cases) {
+      const Dataset& input = item["input"];
+      const Dataset& expected = item["expected"];
+      Dataset result;
+      result["host"] = std::get<std::string>(input["host"].value());
+      EXPECT_EQ(std::get<std::string>(result["host"].value()),
+                std::get<std::string>(expected["host"].value()));
+    }
+  }
+}
+.fi
+.SH SIEHE AUCH
+Weitere Formateinschränkungen stehen in README_de.md im Projekt.

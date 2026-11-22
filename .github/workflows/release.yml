@@ -1,0 +1,150 @@
+name: Release Linux packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-package-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Determine release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(cat VERSION)
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::VERSION must contain a single X.Y.Z version"
+            exit 1
+          fi
+          tag="v$version"
+          commit=$(git rev-parse HEAD)
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "$tag" ]]; then
+            echo "::error::Selected tag does not match VERSION ($tag)"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            tagged_commit=$(git rev-parse "refs/tags/$tag^{commit}")
+            if [[ "$tagged_commit" != "$commit" ]]; then
+              echo "::error::Tag $tag already points to a different commit"
+              exit 1
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+  deb:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential dpkg-dev
+      - name: Build and verify DEB
+        env:
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          make deb
+          dpkg-deb --info dist/*.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: dist/*.deb
+          if-no-files-found: error
+
+  rpm:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    container: fedora:44
+    steps:
+      - name: Install build dependencies
+        run: dnf install -y gcc gcc-c++ make rpm-build tar gzip git findutils
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Build and verify RPM
+        env:
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          make rpm
+          rpm -qip dist/*.rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: dist/*.rpm
+          if-no-files-found: error
+
+  release:
+    needs: [prepare, deb, rpm]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb-package
+          path: packages/deb
+      - uses: actions/download-artifact@v4
+        with:
+          name: rpm-package
+          path: packages/rpm
+      - name: Create tag and release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+            tagged_commit=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
+            if [[ "$tagged_commit" != "$RELEASE_COMMIT" ]]; then
+              echo "::error::Tag $RELEASE_TAG already points to a different commit"
+              exit 1
+            fi
+          else
+            git tag "$RELEASE_TAG" "$RELEASE_COMMIT"
+            git push origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          fi
+
+          range="$RELEASE_COMMIT"
+          if git rev-parse -q --verify "$RELEASE_COMMIT^" >/dev/null; then
+            parent="$RELEASE_COMMIT^"
+            if [[ -n "$(git tag --merged "$parent" --list 'v[0-9]*')" ]]; then
+              previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$parent")
+              range="$previous..$RELEASE_COMMIT"
+            fi
+          fi
+          {
+            echo "## Changes"
+            echo
+            git log --format='- %s (%h)' "$range"
+          } > "$RUNNER_TEMP/release-notes.md"
+          gh release create "$RELEASE_TAG" packages/deb/*.deb packages/rpm/*.rpm \
+            --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"

@@ -1,0 +1,13 @@
+PROJECT_NAME = CppDatasetUtil
+OUTPUT_DIRECTORY = build/doc
+INPUT = Include Source Tests/DatasetTest.cpp
+RECURSIVE = YES
+GENERATE_HTML = YES
+GENERATE_LATEX = NO
+QUIET = YES
+EXTRACT_ALL = NO
+MACRO_EXPANSION = YES
+EXPAND_ONLY_PREDEF = YES
+# Present GoogleTest macros as functions in the generated test list.
+PREDEFINED = "TEST(suite,name)=void suite##_##name()" \
+             "TEST_F(suite,name)=void suite##_##name()"

@@ -1,0 +1,10 @@
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+host = "example.net"
+port = 443
+enabled = false

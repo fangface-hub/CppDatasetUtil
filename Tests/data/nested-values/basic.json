@@ -1,0 +1,12 @@
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"host": "localhost", "port": 8080, "enabled": true}
+    },
+    {
+      "input": {"host": "", "port": 0, "enabled": false},
+      "expected": {"host": "", "port": 0, "enabled": false}
+    }
+  ]
+}

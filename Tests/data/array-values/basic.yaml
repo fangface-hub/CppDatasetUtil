@@ -1,0 +1,11 @@
+cases:
+  - input:
+      items: ["first", "middle", "last"]
+    expected:
+      first: "first"
+      last: "last"
+  - input:
+      items: ["", "tail"]
+    expected:
+      first: ""
+      last: "tail"

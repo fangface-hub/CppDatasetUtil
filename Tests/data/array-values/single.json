@@ -1,0 +1,8 @@
+{
+  "cases": [
+    {
+      "input": {"items": ["only"]},
+      "expected": {"first": "only", "last": "only"}
+    }
+  ]
+}

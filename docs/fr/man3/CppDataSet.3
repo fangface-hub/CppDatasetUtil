@@ -1,0 +1,134 @@
+.\" -*- coding: UTF-8 -*-
+.TH CppDataSet 3 "" "CppDatasetUtil" "Fonctions de bibliothèque"
+.SH NOM
+CppDataSet \- valeur Dataset récursive avec commentaires facultatifs
+.SH SYNOPSIS
+.nf
+.B #include <Dataset.h>
+.B class Dataset;
+.fi
+.SH DESCRIPTION
+Dataset contient null, un booléen, un entier signé de 64 bits, un double,
+une chaîne, une table ou un tableau. Les éléments des tables et tableaux sont
+aussi des Dataset. Chaque valeur peut avoir ses propres commentaires. Les
+tables sont triées par clé et les tableaux conservent leur ordre. La copie et
+le déplacement conservent les valeurs et leurs commentaires.
+.SH TYPES ET CONSTRUCTEURS
+.B Dataset::Map
+est std::map<std::string, Dataset>,
+.B Dataset::Array
+est std::vector<Dataset> et
+.B Dataset::Value
+est une std::variant des types pris en charge. Le constructeur par défaut
+crée null sans commentaire. Les constructeurs acceptent nullptr, bool, int,
+std::int64_t, double, const char*, std::string, Map et Array. Un pointeur
+null pour const char* provoque std::invalid_argument.
+.SH ACCÈS
+.TP
+.B operator[](const std::string& key)
+Accède à une entrée de table. Si la valeur modifiable est null, elle devient
+une table vide ; une clé absente est insérée avec la valeur null. Les
+commentaires du parent sont conservés. L'accès const ne modifie rien et
+lève std::out_of_range si la clé manque. Un type autre qu'une table
+provoque std::logic_error.
+.TP
+.B operator[](std::size_t index)
+Accède à un élément de tableau sans insertion. L'indice commence à 0.
+Un autre type provoque std::logic_error, un indice hors limites
+std::out_of_range. Remplacer le Dataset parent invalide les références
+à ses éléments.
+.TP
+.B value() const noexcept
+Renvoie une référence const à Value. Si le type ne correspond pas,
+std::get lève std::bad_variant_access et std::get_if renvoie un pointeur null.
+.SH COMMENTAIRES
+.TP
+.B comments() const noexcept
+Renvoie une référence const aux commentaires, dans leur ordre.
+.TP
+.B set_comments(std::vector<std::string> comments)
+Remplace les commentaires. Le texte ne doit pas commencer par # ; les sauts
+de ligne produisent plusieurs lignes de commentaire. YAML et TOML exigent
+UTF-8 valide et rejettent les caractères de contrôle non pris en charge et
+les séparateurs de ligne Unicode. Les commentaires TOML impossibles à placer
+sont omis. CSV et JSON ne les enregistrent pas. Une affectation ou un Load
+réussi remplace également les commentaires existants.
+.SH FICHIERS
+.TP
+.B Load(const std::string& path)
+Charge CSV, JSON, YAML ou TOML selon l'extension .csv, .json, .yaml, .yml ou
+\&.toml, sans distinction de casse. Les commentaires ne sont pas chargés.
+En cas de succès, la valeur et les commentaires sont remplacés ; en cas
+d'échec, le Dataset reste inchangé. Les erreurs d'E/S, les entrées invalides
+et les extensions ou valeurs non prises en charge provoquent std::runtime_error.
+.TP
+.B "static LoadDirectory(const std::string& path, bool recursive = false)"
+Renvoie une std::list de paires chemin et Dataset, triée par chemin.
+Les sous-répertoires ne sont parcourus que si recursive=true. Les extensions
+non prises en charge sont ignorées. Les liens symboliques vers fichiers et
+répertoires sont suivis ; une cible atteinte par plusieurs chemins est chargée
+pour chacun. Les chemins retournés conservent les noms indiqués, y compris les
+liens. L'extension du lien de fichier détermine le format. Cycles, liens
+rompus, entrées illisibles et fichiers dont le chargement échoue sont ignorés
+avec un avertissement sur stderr. Un répertoire initial impossible à ouvrir
+provoque std::runtime_error. Les commentaires ne sont pas chargés.
+.TP
+.B Save(const std::string& path) const
+Enregistre selon l'extension. CSV exige un tableau de tables non vides ayant
+les mêmes clés et des valeurs chaîne ; un tableau vide produit un fichier
+vide. La racine TOML doit être une table et null n'est pas pris en charge.
+Les nombres flottants non finis ne peuvent pas être enregistrés. YAML et TOML
+enregistrent les commentaires représentables. La sérialisation précède
+l'ouverture, mais une erreur d'écriture peut laisser un fichier tronqué ou
+incomplet. Les erreurs d'E/S, extensions non prises en charge et valeurs ou
+commentaires non représentables provoquent std::runtime_error.
+.PP
+En CSV, la première ligne contient les noms de colonnes et chaque ligne
+suivante devient une table de chaînes. Les noms répétés et les nombres de
+colonnes incohérents sont des erreurs. YAML résout les scalaires de base
+pris en charge et rejette plusieurs documents, les ancres répétées, les alias
+récursifs et les balises non prises en charge. Les dates, heures et nombres
+non finis TOML ne sont pas chargés.
+.SH EXEMPLE
+.nf
+#include <Dataset.h>
+#include <string>
+#include <variant>
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto& host = std::get<std::string>(
+    loaded["server"]["host"].value());
+.fi
+.SH TESTS PILOTÉS PAR LES DONNÉES
+Exécuter cet exemple GoogleTest depuis la racine du projet. Il charge les
+deux fichiers de Tests/data/nested-values et compare le host de input et
+expected pour chaque cas. Les vérifications du nombre de fichiers et des cas
+non vides aident à détecter les fichiers de données ignorés.
+.nf
+#include <gtest/gtest.h>
+#include "Dataset.h"
+
+TEST(Example, NestedValues) {
+  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto& [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto& cases = std::get<Dataset::Array>(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (const auto& item : cases) {
+      const Dataset& input = item["input"];
+      const Dataset& expected = item["expected"];
+      Dataset result;
+      result["host"] = std::get<std::string>(input["host"].value());
+      EXPECT_EQ(std::get<std::string>(result["host"].value()),
+                std::get<std::string>(expected["host"].value()));
+    }
+  }
+}
+.fi
+.SH VOIR AUSSI
+Voir README_fr.md dans le projet pour les autres restrictions des formats.

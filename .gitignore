@@ -43,6 +43,9 @@
 [Bb]uild-*/
 cmake-build-*/
 
+# Packaging output
+dist/
+
 # CMake generated files
 CMakeFiles/
 CMakeCache.txt

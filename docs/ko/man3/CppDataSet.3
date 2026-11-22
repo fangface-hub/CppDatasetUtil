@@ -1,0 +1,139 @@
+.\" -*- coding: UTF-8 -*-
+.mso ja.tmac
+.class [Hangul] \[uAC00]-\[uD7A3]
+.cflags 512 \C'[Hangul]'
+.TH CppDataSet 3 "" "CppDatasetUtil" "라이브러리 함수"
+.nh
+.SH 이름
+.ad l
+CppDataSet \- 선택적인 주석을 가진 재귀적 Dataset 값
+.SH 사용법
+.nf
+.B #include <Dataset.h>
+.B class Dataset;
+.fi
+.SH 설명
+.ad l
+Dataset은 null, 불리언, 부호 있는 64비트 정수, double, 문자열, 맵 또는
+배열을 보유합니다. 맵과 배열의 요소도 Dataset이며, 각 값에 주석을
+따로 지정할 수 있습니다. 맵은 키순으로 정렬되고 배열은 순서를
+유지합니다. 복사와 이동은 값과 주석을 함께 처리합니다.
+.SH 타입과 생성자
+.ad l
+Dataset::Map은 std::map<std::string, Dataset>, Dataset::Array는
+std::vector<Dataset>, Dataset::Value는 지원 타입의 std::variant입니다.
+기본 생성자는 주석이 없는 null을 만듭니다. nullptr, bool, int,
+std::int64_t, double, const char*, std::string, Map, Array로도 생성할
+수 있습니다. const char*에 null 포인터를 전달하면
+std::invalid_argument가 발생합니다.
+.SH 접근
+.TP
+.B operator[](const std::string& key)
+.ad l
+맵 항목에 접근합니다. 변경 가능한 값이 null이면 빈 맵으로 변환하고
+없는 키는 null 값으로 삽입합니다. 부모 값의 주석은 유지됩니다. const
+접근은 값을 변경하지 않으며 키가 없으면 std::out_of_range가 발생합니다.
+맵이 아닌 값에 접근하면 std::logic_error가 발생합니다.
+.TP
+.B operator[](std::size_t index)
+.ad l
+배열 요소에 접근하며 삽입하지 않습니다. 인덱스는 0부터 시작합니다.
+배열이 아니면 std::logic_error, 범위를 벗어나면 std::out_of_range가
+발생합니다. 부모 Dataset을 교체하면 요소에 대한 참조가 무효화됩니다.
+.TP
+.B value() const noexcept
+.ad l
+Value에 대한 const 참조를 반환합니다. 타입이 다르면 std::get은
+std::bad_variant_access를 발생시키고 std::get_if는 null 포인터를 반환합니다.
+.SH 주석
+.TP
+.B comments() const noexcept
+.ad l
+저장된 순서의 주석에 대한 const 참조를 반환합니다.
+.TP
+.B set_comments(std::vector<std::string> comments)
+.ad l
+주석을 교체합니다. 앞에 #을 붙이지 않으며 줄 바꿈은 여러 주석 줄로
+저장됩니다. YAML과 TOML은 유효한 UTF-8을 요구하며 지원하지 않는 제어
+문자와 Unicode 줄 구분자를 거부합니다. TOML 구문상 배치할 수 없는
+주석은 생략됩니다. CSV와 JSON은 주석을 저장하지 않습니다. 대입 또는
+성공한 Load도 기존 주석을 교체합니다.
+.SH 파일
+.TP
+.B Load(const std::string& path)
+.ad l
+확장자 .csv, .json, .yaml, .yml, .toml을 대소문자 구별 없이 사용하여
+CSV, JSON, YAML, TOML을 선택해 읽습니다. 주석은 읽지 않습니다. 성공하면
+값과 주석이 교체되고 실패하면 Dataset이 그대로 유지됩니다. 입출력 오류,
+잘못된 입력, 지원하지 않는 확장자 또는 값은 std::runtime_error를 발생시킵니다.
+.TP
+.B "static LoadDirectory(const std::string& path, bool recursive = false)"
+.ad l
+경로와 Dataset 쌍을 경로순 std::list로 반환합니다. recursive=true일
+때만 하위 디렉터리를 탐색하며 지원하지 않는 확장자는 무시합니다.
+파일과 디렉터리의 심볼릭 링크를 따라가며 같은 대상이라도 경로마다
+읽습니다. 반환된 경로는 지정된 디렉터리와 링크 이름을 유지합니다.
+파일 링크의 확장자가 형식을 결정합니다. 순환, 끊어진 링크, 읽을 수 없는
+항목 및 로드 실패 파일은 표준 오류에 경고하고 건너뜁니다. 시작
+디렉터리를 열 수 없으면 std::runtime_error가 발생합니다. 주석은 읽지 않습니다.
+.TP
+.B Save(const std::string& path) const
+.ad l
+확장자에 따라 저장합니다. CSV는 같은 키와 문자열 값을 가진 비어 있지
+않은 맵의 배열이 필요하며 빈 배열은 빈 파일로 저장합니다. TOML의
+루트는 맵이어야 하고 null은 지원하지 않습니다. 유한하지 않은 실수는
+저장할 수 없습니다. YAML과 TOML은 표현 가능한 주석을 저장합니다.
+파일을 열기 전에 직렬화하지만 쓰기 중 입출력 오류가 발생하면 파일이
+잘리거나 불완전하게 남을 수 있습니다. 입출력 오류, 지원하지 않는
+확장자, 표현할 수 없는 값이나 주석은 std::runtime_error를 발생시킵니다.
+.PP
+.ad l
+CSV는 첫 줄을 열 이름으로 사용하고 이후 각 줄을 문자열 맵으로 읽습니다.
+중복 열 이름과 일치하지 않는 열 수는 오류입니다. YAML은 지원하는 기본
+스칼라를 해석하고 여러 문서, 중복 앵커, 재귀 별칭 및 미지원 태그를
+거부합니다. TOML의 날짜 및 시간 값과 유한하지 않은 수는 읽을 수 없습니다.
+.SH 예제
+.nf
+#include <Dataset.h>
+#include <string>
+#include <variant>
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto& host = std::get<std::string>(
+    loaded["server"]["host"].value());
+.fi
+.SH 데이터 기반 테스트
+.ad l
+다음 GoogleTest 예제는 프로젝트 루트에서 실행합니다.
+Tests/data/nested-values의 두 파일을 읽고 각 케이스의 input과 expected
+host를 비교합니다. 파일 수와 빈 케이스 검사는 건너뛴 데이터 파일을
+찾는 데 도움이 됩니다.
+.nf
+#include <gtest/gtest.h>
+#include "Dataset.h"
+
+TEST(Example, NestedValues) {
+  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto& [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto& cases = std::get<Dataset::Array>(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (const auto& item : cases) {
+      const Dataset& input = item["input"];
+      const Dataset& expected = item["expected"];
+      Dataset result;
+      result["host"] = std::get<std::string>(input["host"].value());
+      EXPECT_EQ(std::get<std::string>(result["host"].value()),
+                std::get<std::string>(expected["host"].value()));
+    }
+  }
+}
+.fi
+.SH 참고
+.ad l
+형식별 추가 제한은 프로젝트의 README_ko.md를 참조하십시오.
