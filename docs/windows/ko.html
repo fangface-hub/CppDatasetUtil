@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>CppDatasetUtil API</title>
+</head>
+<body>
+<nav><a href="index.html">Languages / &#x8a00;&#x8a9e;</a></nav>
+<h1>CppDatasetUtil API</h1>
+<h2>이름</h2>
+<p>
+CppDataSet - 선택적인 주석을 가진 재귀적 Dataset 값
+</p>
+<h2>사용법</h2>
+<pre>
+<b>#include &lt;Dataset.h&gt;</b>
+<b>class Dataset;</b>
+</pre>
+<h2>설명</h2>
+<p>
+Dataset은 null, 불리언, 부호 있는 64비트 정수, double, 문자열, 맵 또는
+배열을 보유합니다. 맵과 배열의 요소도 Dataset이며, 각 값에 주석을
+따로 지정할 수 있습니다. 맵은 키순으로 정렬되고 배열은 순서를
+유지합니다. 복사와 이동은 값과 주석을 함께 처리합니다.
+</p>
+<h2>타입과 생성자</h2>
+<p>
+Dataset::Map은 std::map&lt;std::string, Dataset&gt;, Dataset::Array는
+std::vector&lt;Dataset&gt;, Dataset::Value는 지원 타입의 std::variant입니다.
+기본 생성자는 주석이 없는 null을 만듭니다. nullptr, bool, int,
+std::int64_t, double, const char*, std::string, Map, Array로도 생성할
+수 있습니다. const char*에 null 포인터를 전달하면
+std::invalid_argument가 발생합니다.
+</p>
+<h2>접근</h2>
+<p>
+<b>operator[](const std::string&amp; key)</b>
+맵 항목에 접근합니다. 변경 가능한 값이 null이면 빈 맵으로 변환하고
+없는 키는 null 값으로 삽입합니다. 부모 값의 주석은 유지됩니다. const
+접근은 값을 변경하지 않으며 키가 없으면 std::out_of_range가 발생합니다.
+맵이 아닌 값에 접근하면 std::logic_error가 발생합니다.
+</p>
+<p>
+<b>operator[](std::size_t index)</b>
+배열 요소에 접근하며 삽입하지 않습니다. 인덱스는 0부터 시작합니다.
+배열이 아니면 std::logic_error, 범위를 벗어나면 std::out_of_range가
+발생합니다. 부모 Dataset을 교체하면 요소에 대한 참조가 무효화됩니다.
+</p>
+<p>
+<b>value() const noexcept</b>
+Value에 대한 const 참조를 반환합니다. 타입이 다르면 std::get은
+std::bad_variant_access를 발생시키고 std::get_if는 null 포인터를 반환합니다.
+</p>
+<h2>주석</h2>
+<p>
+<b>comments() const noexcept</b>
+저장된 순서의 주석에 대한 const 참조를 반환합니다.
+</p>
+<p>
+<b>set_comments(std::vector&lt;std::string&gt; comments)</b>
+주석을 교체합니다. 앞에 #을 붙이지 않으며 줄 바꿈은 여러 주석 줄로
+저장됩니다. YAML과 TOML은 유효한 UTF-8을 요구하며 지원하지 않는 제어
+문자와 Unicode 줄 구분자를 거부합니다. TOML 구문상 배치할 수 없는
+주석은 생략됩니다. CSV와 JSON은 주석을 저장하지 않습니다. 대입 또는
+성공한 Load도 기존 주석을 교체합니다.
+</p>
+<h2>파일</h2>
+<p>
+<b>Load(const std::string&amp; path)</b>
+확장자 .csv, .json, .yaml, .yml, .toml을 대소문자 구별 없이 사용하여
+CSV, JSON, YAML, TOML을 선택해 읽습니다. 주석은 읽지 않습니다. 성공하면
+값과 주석이 교체되고 실패하면 Dataset이 그대로 유지됩니다. 입출력 오류,
+잘못된 입력, 지원하지 않는 확장자 또는 값은 std::runtime_error를 발생시킵니다.
+</p>
+<p>
+<b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
+경로와 Dataset 쌍을 경로순 std::list로 반환합니다. recursive=true일
+때만 하위 디렉터리를 탐색하며 지원하지 않는 확장자는 무시합니다.
+파일과 디렉터리의 심볼릭 링크를 따라가며 같은 대상이라도 경로마다
+읽습니다. 반환된 경로는 지정된 디렉터리와 링크 이름을 유지합니다.
+파일 링크의 확장자가 형식을 결정합니다. 순환, 끊어진 링크, 읽을 수 없는
+항목 및 로드 실패 파일은 표준 오류에 경고하고 건너뜁니다. 시작
+디렉터리를 열 수 없으면 std::runtime_error가 발생합니다. 주석은 읽지 않습니다.
+</p>
+<p>
+<b>Save(const std::string&amp; path) const</b>
+확장자에 따라 저장합니다. CSV는 같은 키와 문자열 값을 가진 비어 있지
+않은 맵의 배열이 필요하며 빈 배열은 빈 파일로 저장합니다. TOML의
+루트는 맵이어야 하고 null은 지원하지 않습니다. 유한하지 않은 실수는
+저장할 수 없습니다. YAML과 TOML은 표현 가능한 주석을 저장합니다.
+파일을 열기 전에 직렬화하지만 쓰기 중 입출력 오류가 발생하면 파일이
+잘리거나 불완전하게 남을 수 있습니다. 입출력 오류, 지원하지 않는
+확장자, 표현할 수 없는 값이나 주석은 std::runtime_error를 발생시킵니다.
+</p>
+<p>
+CSV는 첫 줄을 열 이름으로 사용하고 이후 각 줄을 문자열 맵으로 읽습니다.
+중복 열 이름과 일치하지 않는 열 수는 오류입니다. YAML은 지원하는 기본
+스칼라를 해석하고 여러 문서, 중복 앵커, 재귀 별칭 및 미지원 태그를
+거부합니다. TOML의 날짜 및 시간 값과 유한하지 않은 수는 읽을 수 없습니다.
+</p>
+<h2>예제</h2>
+<pre>
+#include &lt;Dataset.h&gt;
+#include &lt;string&gt;
+#include &lt;variant&gt;
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto&amp; host = std::get&lt;std::string&gt;(
+    loaded["server"]["host"].value());
+</pre>
+<h2>데이터 기반 테스트</h2>
+<p>
+다음 GoogleTest 예제는 프로젝트 루트에서 실행합니다.
+Dataset으로 Tests/data/server-config의 두 파일을 읽고 독립적인
+ServerConfig 모델의 엔드포인트와 활성 상태를 기대값과 비교합니다.
+파일 수와 빈 케이스 검사는 건너뛴 데이터 파일을
+찾는 데 도움이 됩니다.
+각 파일의 케이스에는 입력값 input과 기대값 expected가 있습니다.
+</p>
+<p><code>Tests/data/server-config/basic.json</code></p>
+<pre>
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
+</pre>
+<p><code>Tests/data/server-config/alternate.toml</code></p>
+<pre>
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+</pre>
+<pre>
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+#include &lt;variant&gt;
+
+#include &lt;gtest/gtest.h&gt;
+#include "Dataset.h"
+
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto&amp; [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto&amp; cases = std::get&lt;Dataset::Array&gt;(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (std::size_t i = 0; i &lt; cases.size(); ++i) {
+      SCOPED_TRACE(i);
+      const Dataset&amp; input = cases[i]["input"];
+      const Dataset&amp; expected = cases[i]["expected"];
+      const ServerConfig server(std::get&lt;std::string&gt;(input["host"].value()),
+                                std::get&lt;std::int64_t&gt;(input["port"].value()),
+                                std::get&lt;bool&gt;(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get&lt;std::string&gt;(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get&lt;bool&gt;(expected["enabled"].value()));
+    }
+  }
+}
+</pre>
+<h2>참고</h2>
+<p>
+형식별 추가 제한은 프로젝트의 README_ko.md를 참조하십시오.
+
+</p>
+</body>
+</html>

@@ -104,28 +104,83 @@ const auto& host = std::get<std::string>(
     loaded["server"]["host"].value());
 .fi
 .SH TESTS PILOTÉS PAR LES DONNÉES
-Exécuter cet exemple GoogleTest depuis la racine du projet. Il charge les
-deux fichiers de Tests/data/nested-values et compare le host de input et
-expected pour chaque cas. Les vérifications du nombre de fichiers et des cas
-non vides aident à détecter les fichiers de données ignorés.
+Exécuter cet exemple GoogleTest depuis la racine du projet. Dataset lit les
+deux fichiers de Tests/data/server-config ; l'adresse et l'état du modèle
+indépendant ServerConfig sont vérifiés. Les vérifications du nombre de fichiers
+et des cas non vides aident à détecter les fichiers de données ignorés.
+Chaque fichier contient des cas avec les valeurs d'entrée (input) et les
+valeurs attendues (expected) :
+.PP
+.B Tests/data/server-config/basic.json
 .nf
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
+.fi
+.PP
+.B Tests/data/server-config/alternate.toml
+.nf
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+.fi
+.PP
+.nf
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <variant>
+
 #include <gtest/gtest.h>
 #include "Dataset.h"
 
-TEST(Example, NestedValues) {
-  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
   ASSERT_EQ(files.size(), 2u);
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
     const auto& cases = std::get<Dataset::Array>(dataset["cases"].value());
     ASSERT_FALSE(cases.empty());
-    for (const auto& item : cases) {
-      const Dataset& input = item["input"];
-      const Dataset& expected = item["expected"];
-      Dataset result;
-      result["host"] = std::get<std::string>(input["host"].value());
-      EXPECT_EQ(std::get<std::string>(result["host"].value()),
-                std::get<std::string>(expected["host"].value()));
+    for (std::size_t i = 0; i < cases.size(); ++i) {
+      SCOPED_TRACE(i);
+      const Dataset& input = cases[i]["input"];
+      const Dataset& expected = cases[i]["expected"];
+      const ServerConfig server(std::get<std::string>(input["host"].value()),
+                                std::get<std::int64_t>(input["port"].value()),
+                                std::get<bool>(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get<std::string>(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get<bool>(expected["enabled"].value()));
     }
   }
 }

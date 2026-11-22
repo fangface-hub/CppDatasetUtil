@@ -72,6 +72,37 @@ case. The API man pages are maintained in [docs/](docs/).
 Building requires a C compiler and a C++17 compiler; generating HTML
 documentation requires Doxygen.
 
+## Windows DLL and help
+
+With the Visual Studio 2022 C++ desktop tools and CMake installed, run from
+the project root:
+
+```powershell
+cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
+cmake --build build-windows --config Release
+ctest --test-dir build-windows -C Release --output-on-failure
+cmake --build build-windows --config Release --target windows_help
+```
+
+The DLL and import library are `build-windows\Release\cppdatasetutil.dll` and
+`cppdatasetutil.lib`. Include `Include\Dataset.h` and link the import library
+using the same architecture and a compatible MSVC toolset and runtime
+configuration. Put the DLL next to the executable or on the Windows DLL
+search path at runtime. `CPPDATASETUTIL_BUILD` is for building the library
+only; consumers must not define it. The test runs a separate DLL-linked
+consumer executable. The Release DLL also requires the compatible Microsoft
+Visual C++ Redistributable on the target machine.
+
+The `windows_help` target uses Microsoft HTML Help Workshop's `hhc.exe` to
+produce `build-windows\help\CppDatasetUtil.chm`. Choose English, Japanese,
+German, French, Italian, Korean, or Simplified Chinese on its language page;
+each topic links back to that page.
+If the compiler is installed elsewhere, configure CMake with
+`-DHTML_HELP_COMPILER="C:\path\to\hhc.exe"`. Without the workshop the DLL
+can still be built, but the help target is not available. The help sources
+are in [docs/windows/](docs/windows/), based on the corresponding man pages.
+Keep both sets of documentation in sync when changing the API reference.
+
 ## Data-driven testing
 
 The tests use one subdirectory per test item under `Tests/data/`:
@@ -80,31 +111,74 @@ The tests use one subdirectory per test item under `Tests/data/`:
 Tests/data/
   nested-values/   JSON and TOML cases for map access
   array-values/    YAML and JSON cases for array access
+  server-config/   JSON and TOML cases for the example model
 ```
 
 Each file contains a `cases` array. Each case has an `input` and an `expected`
-value. For example, a file in `nested-values/` can contain:
+value. The two files used by the example contain:
+
+`Tests/data/server-config/basic.json`:
 
 ```json
 {
   "cases": [
     {
       "input": {"host": "localhost", "port": 8080, "enabled": true},
-      "expected": {"host": "localhost", "port": 8080, "enabled": true}
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
     }
   ]
 }
 ```
 
+`Tests/data/server-config/alternate.toml`:
+
+```toml
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+```
+
 The following GoogleTest example reads the existing two files from the
-project root and uses each case to test nested map access:
+project root. `Dataset` reads the cases; the independent `ServerConfig` model
+is the test subject. The test compares its endpoint and enabled state with
+the expected values:
 
 ```cpp
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <variant>
+
 #include <gtest/gtest.h>
 #include "Dataset.h"
 
-TEST(Example, NestedValues) {
-  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
   ASSERT_EQ(files.size(), 2u);
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
@@ -114,16 +188,12 @@ TEST(Example, NestedValues) {
       SCOPED_TRACE(i);
       const Dataset& input = cases[i]["input"];
       const Dataset& expected = cases[i]["expected"];
-      Dataset result;
-      result["server"]["host"] = std::get<std::string>(input["host"].value());
-      result["server"]["port"] = std::get<std::int64_t>(input["port"].value());
-      result["enabled"] = std::get<bool>(input["enabled"].value());
-      EXPECT_EQ(std::get<std::string>(result["server"]["host"].value()),
-                std::get<std::string>(expected["host"].value()));
-      EXPECT_EQ(std::get<std::int64_t>(result["server"]["port"].value()),
-                std::get<std::int64_t>(expected["port"].value()));
-      EXPECT_EQ(std::get<bool>(result["enabled"].value()),
-                std::get<bool>(expected["enabled"].value()));
+      const ServerConfig server(std::get<std::string>(input["host"].value()),
+                                std::get<std::int64_t>(input["port"].value()),
+                                std::get<bool>(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get<std::string>(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get<bool>(expected["enabled"].value()));
     }
   }
 }
@@ -132,6 +202,8 @@ TEST(Example, NestedValues) {
 `LoadDirectory` skips unreadable files, so verify the expected file count or
 check its warnings to avoid silently missing cases. The project's tests check
 for warnings and empty files. Run them with `make test` from the project root.
+The example above is separate: save it as a source file, link it with
+`cppdatasetutil` and `gtest_main`, and run it from the project root.
 
 ## Linux packages
 
@@ -164,13 +236,16 @@ Run `make package-test-rpm` or
 and link against an extracted package. RPM tests also require `rpm2cpio` and
 `cpio`; both package tests require `readelf`.
 
-The **Release Linux packages** GitHub Actions workflow is started manually.
+The **Release packages** GitHub Actions workflow is started manually.
 The workflow must exist on the default branch. Choose the branch or tag to
 release; its `VERSION` determines the `vX.Y.Z` release tag. A selected tag
 must match `VERSION`, and an existing release tag must point to the selected
-commit. If the release tag does not exist, the workflow creates it after both
-builds succeed, then publishes a GitHub Release
-with the DEB (Ubuntu 24.04, x86-64) and RPM (Fedora 44, x86-64) attached.
+commit. If the release tag does not exist, the workflow creates it after all
+builds succeed, then publishes a GitHub Release with the DEB (Ubuntu 24.04,
+x86-64), RPM (Fedora 44, x86-64), and Windows x64 DLL and CHM. A Windows SDK
+ZIP also contains the DLL, import library, header, CHM, and licenses.
+The Windows job downloads the archived Microsoft HTML Help Workshop installer
+and verifies its SHA-256 before extracting the compiler.
 Release notes contain Git commit subjects since the nearest version tag
 reachable from the selected commit's first parent, or the full history if none
 exists. An existing release is not replaced.

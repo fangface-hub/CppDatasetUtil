@@ -1,0 +1,17 @@
+[OPTIONS]
+Compatibility=1.1 or later
+Compiled file=CppDatasetUtil.chm
+Default topic=index.html
+Display compile progress=No
+Language=0x411 Japanese
+Title=CppDatasetUtil API
+
+[FILES]
+index.html
+en.html
+ja.html
+de.html
+fr.html
+it.html
+ko.html
+zh_CN.html

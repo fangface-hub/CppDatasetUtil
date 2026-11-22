@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>CppDatasetUtil API</title>
+</head>
+<body>
+<nav><a href="index.html">Languages / &#x8a00;&#x8a9e;</a></nav>
+<h1>CppDatasetUtil API</h1>
+<h2>NAME</h2>
+<p>
+CppDataSet - rekursiver Dataset-Wert mit optionalen Kommentaren
+</p>
+<h2>ÜBERSICHT</h2>
+<pre>
+<b>#include &lt;Dataset.h&gt;</b>
+<b>class Dataset;</b>
+</pre>
+<h2>BESCHREIBUNG</h2>
+<p>
+Dataset enthält null, bool, eine vorzeichenbehaftete 64-Bit-Ganzzahl,
+double, eine Zeichenkette, eine Map oder ein Array. Map- und Array-Elemente
+sind ebenfalls Dataset-Werte. Jeder Wert kann eigene Kommentare tragen.
+Maps sind nach Schlüsseln sortiert, Arrays behalten ihre Reihenfolge.
+Kopieren und Verschieben übernehmen sowohl Werte als auch Kommentare.
+</p>
+<h2>TYPEN UND KONSTRUKTOREN</h2>
+<p>
+<b>Dataset::Map</b>
+ist std::map&lt;std::string, Dataset&gt;,
+<b>Dataset::Array</b>
+ist std::vector&lt;Dataset&gt; und
+<b>Dataset::Value</b>
+ist eine std::variant der unterstützten Typen.
+Der Standardkonstruktor erzeugt null ohne Kommentare. Konstruktoren akzeptieren
+nullptr, bool, int, std::int64_t, double, const char*, std::string, Map und
+Array. Ein null-Zeiger für const char* führt zu std::invalid_argument.
+</p>
+<h2>ZUGRIFF</h2>
+<p>
+<b>operator[](const std::string&amp; key)</b>
+Greift auf einen Map-Eintrag zu. Bei einem veränderbaren null-Wert wird eine
+leere Map erzeugt; ein fehlender Schlüssel wird mit null eingefügt.
+Kommentare des übergeordneten Werts bleiben erhalten. Const-Zugriff ändert
+nichts und wirft std::out_of_range bei fehlendem Schlüssel. Ein Wert, der
+keine Map ist, führt zu std::logic_error.
+</p>
+<p>
+<b>operator[](std::size_t index)</b>
+Greift auf ein Array-Element zu, ohne es einzufügen. Der Index beginnt bei 0.
+Ein anderer Typ führt zu std::logic_error, ein ungültiger Index zu
+std::out_of_range. Ersetzen des übergeordneten Dataset macht Referenzen auf
+seine Elemente ungültig.
+</p>
+<p>
+<b>value() const noexcept</b>
+Liefert eine const-Referenz auf Value. std::get wirft bei falschem Typ
+std::bad_variant_access; std::get_if liefert dann einen null-Zeiger.
+</p>
+<h2>KOMMENTARE</h2>
+<p>
+<b>comments() const noexcept</b>
+Liefert eine const-Referenz auf die Kommentare in gespeicherter Reihenfolge.
+</p>
+<p>
+<b>set_comments(std::vector&lt;std::string&gt; comments)</b>
+Ersetzt die Kommentare. Text wird ohne führendes # angegeben; Zeilenumbrüche
+erzeugen mehrere Kommentarzeilen. YAML und TOML verlangen gültiges UTF-8 und
+weisen nicht unterstützte Steuerzeichen und Unicode-Zeilentrenner zurück.
+In TOML syntaktisch nicht darstellbare Kommentare werden ausgelassen.
+CSV und JSON speichern keine Kommentare. Zuweisung und erfolgreiches Load
+ersetzen vorhandene Kommentare.
+</p>
+<h2>DATEIEN</h2>
+<p>
+<b>Load(const std::string&amp; path)</b>
+Lädt CSV, JSON, YAML oder TOML anhand der Erweiterung .csv, .json, .yaml,
+.yml oder .toml, unabhängig von Groß- und Kleinschreibung. Kommentare werden
+nicht eingelesen. Erfolg ersetzt Wert und Kommentare; bei Fehlern bleibt das
+Dataset unverändert. E/A-Fehler, ungültige Eingaben und nicht unterstützte
+Erweiterungen oder Werte führen zu std::runtime_error.
+</p>
+<p>
+<b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
+Liefert eine nach Pfad sortierte std::list von Paaren aus Pfad und Dataset.
+Unterverzeichnisse werden nur bei recursive=true durchsucht. Nicht unterstützte
+Erweiterungen werden ignoriert. Symbolischen Links auf Dateien und Verzeichnisse
+wird gefolgt; dasselbe Ziel wird für jeden erreichbaren Pfad geladen. Die
+zurückgegebenen Pfade behalten die angegebenen Verzeichnis- und Linknamen.
+Bei Dateilinks bestimmt die Erweiterung des Links das Format. Zyklen, defekte
+Links, unlesbare Einträge und fehlgeschlagene Dateien werden mit einer Warnung
+auf stderr übersprungen. Ein nicht zu öffnendes Startverzeichnis führt zu
+std::runtime_error. Kommentare werden nicht geladen.
+</p>
+<p>
+<b>Save(const std::string&amp; path) const</b>
+Speichert anhand der Erweiterung. CSV verlangt ein Array nicht leerer Maps mit
+gleichen Schlüsseln und Zeichenkettenwerten; ein leeres Array ergibt eine leere
+Datei. TOML verlangt eine Map als Wurzel und unterstützt kein null.
+Nicht endliche Gleitkommazahlen können nicht gespeichert werden. YAML und TOML
+speichern darstellbare Kommentare. Serialisiert wird vor dem Öffnen; ein
+E/A-Fehler beim Schreiben kann eine abgeschnittene oder unvollständige Datei
+hinterlassen. E/A-Fehler und nicht darstellbare Werte oder Kommentare führen
+wie nicht unterstützte Erweiterungen zu std::runtime_error.
+</p>
+<p>
+CSV verwendet die erste Zeile als Spaltennamen und speichert jede weitere
+Zeile als Map von Zeichenketten. Doppelte Namen und unterschiedliche
+Spaltenzahlen sind Fehler. YAML löst unterstützte Basisskalare auf und
+verwirft mehrere Dokumente, doppelte Anker, rekursive Aliase und unbekannte
+Tags. TOML-Datums-/Zeitwerte und nicht endliche Zahlen werden nicht geladen.
+</p>
+<h2>BEISPIEL</h2>
+<pre>
+#include &lt;Dataset.h&gt;
+#include &lt;string&gt;
+#include &lt;variant&gt;
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto&amp; host = std::get&lt;std::string&gt;(
+    loaded["server"]["host"].value());
+</pre>
+<h2>DATENGETRIEBENE TESTS</h2>
+<p>
+Dieses GoogleTest-Beispiel wird im Projektverzeichnis ausgeführt. Dataset liest
+zwei Dateien aus Tests/data/server-config; geprüft werden Endpunkt und Status
+des unabhängigen ServerConfig-Modells. Die Prüfungen der Dateianzahl und der
+nicht leeren Fälle helfen, übersprungene Datendateien zu erkennen.
+Jede Datei enthält Fälle mit Eingabewerten (input) und Erwartungswerten
+(expected):
+</p>
+<p><code>Tests/data/server-config/basic.json</code></p>
+<pre>
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
+</pre>
+<p><code>Tests/data/server-config/alternate.toml</code></p>
+<pre>
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+</pre>
+<pre>
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+#include &lt;variant&gt;
+
+#include &lt;gtest/gtest.h&gt;
+#include "Dataset.h"
+
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto&amp; [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto&amp; cases = std::get&lt;Dataset::Array&gt;(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (std::size_t i = 0; i &lt; cases.size(); ++i) {
+      SCOPED_TRACE(i);
+      const Dataset&amp; input = cases[i]["input"];
+      const Dataset&amp; expected = cases[i]["expected"];
+      const ServerConfig server(std::get&lt;std::string&gt;(input["host"].value()),
+                                std::get&lt;std::int64_t&gt;(input["port"].value()),
+                                std::get&lt;bool&gt;(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get&lt;std::string&gt;(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get&lt;bool&gt;(expected["enabled"].value()));
+    }
+  }
+}
+</pre>
+<h2>SIEHE AUCH</h2>
+<p>
+Weitere Formateinschränkungen stehen in README_de.md im Projekt.
+
+</p>
+</body>
+</html>

@@ -70,6 +70,38 @@ GoogleTest を実行します。`make doc` で Doxygen の HTML を生成しま�
 ビルドには C コンパイラと C++17 コンパイラ、HTML 文書生成には
 Doxygen が必要です。
 
+## Windows DLL とヘルプ
+
+Visual Studio 2022 の C++ デスクトップ開発ツールと CMake を使用し、
+プロジェクトルートで次を実行します。
+
+```powershell
+cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
+cmake --build build-windows --config Release
+ctest --test-dir build-windows -C Release --output-on-failure
+cmake --build build-windows --config Release --target windows_help
+```
+
+`build-windows\Release\cppdatasetutil.dll` とインポートライブラリ
+`cppdatasetutil.lib` が生成されます。利用側は `Include\Dataset.h` を
+インクルードし、同じアーキテクチャと互換性のある MSVC ツールセット・
+ランタイム設定で `cppdatasetutil.lib` にリンクしてください。実行時は DLL を
+実行ファイルと同じディレクトリなど Windows の DLL 検索パスに配置します。
+`CPPDATASETUTIL_BUILD` はライブラリのビルド専用で、利用側では定義しません。
+テストは DLL をリンクした別の実行ファイルで実行します。Release DLL の
+実行先には互換性のある Microsoft Visual C++ 再頒布可能パッケージも必要です。
+
+`windows_help` は Microsoft HTML Help Workshop の `hhc.exe` を使用し、
+`build-windows\help\CppDatasetUtil.chm` を生成します。標準のインストール先
+以外にある場合は CMake 設定時に
+`-DHTML_HELP_COMPILER="C:\path\to\hhc.exe"` を指定してください。
+Workshop がない場合は DLL をビルドできますが、ヘルプターゲットは作成されません。
+生成した CHM の言語選択画面から英語、日本語、ドイツ語、フランス語、
+イタリア語、韓国語、簡体字中国語の API リファレンスを選択できます。
+各ページから言語選択画面に戻れます。ヘルプのソースは対応する man ページを
+基にした [docs/windows/](docs/windows/) です。API リファレンスを変更する際は
+両方を更新してください。
+
 ## データ駆動テスト
 
 `Tests/data/` 配下にテスト項目ごとのサブディレクトリを用意しています。
@@ -78,31 +110,73 @@ Doxygen が必要です。
 Tests/data/
   nested-values/   マップアクセス用の JSON・TOML ケース
   array-values/    配列アクセス用の YAML・JSON ケース
+  server-config/   モデルの例用の JSON・TOML ケース
 ```
 
 各ファイルには `cases` 配列を置き、各ケースに入力値 `input` と規格値
-`expected` を定義します。例えば `nested-values/` 内のファイルは次の形式です。
+`expected` を定義します。例で使用する 2 ファイルの内容は次のとおりです。
+
+`Tests/data/server-config/basic.json`:
 
 ```json
 {
   "cases": [
     {
       "input": {"host": "localhost", "port": 8080, "enabled": true},
-      "expected": {"host": "localhost", "port": 8080, "enabled": true}
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
     }
   ]
 }
 ```
 
-次の GoogleTest の例は、プロジェクトルートから既存の 2 ファイルを読み込み、
-各ケースを使ってネストしたマップへのアクセスを検証します。
+`Tests/data/server-config/alternate.toml`:
+
+```toml
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+```
+
+次の GoogleTest の例は、プロジェクトルートから既存の 2 ファイルを読み込みます。
+`Dataset` はテストデータの読み込みに使用し、独立したモデル `ServerConfig` の
+エンドポイントと有効状態を期待値と比較します。
 
 ```cpp
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <variant>
+
 #include <gtest/gtest.h>
 #include "Dataset.h"
 
-TEST(Example, NestedValues) {
-  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
   ASSERT_EQ(files.size(), 2u);
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
@@ -112,16 +186,12 @@ TEST(Example, NestedValues) {
       SCOPED_TRACE(i);
       const Dataset& input = cases[i]["input"];
       const Dataset& expected = cases[i]["expected"];
-      Dataset result;
-      result["server"]["host"] = std::get<std::string>(input["host"].value());
-      result["server"]["port"] = std::get<std::int64_t>(input["port"].value());
-      result["enabled"] = std::get<bool>(input["enabled"].value());
-      EXPECT_EQ(std::get<std::string>(result["server"]["host"].value()),
-                std::get<std::string>(expected["host"].value()));
-      EXPECT_EQ(std::get<std::int64_t>(result["server"]["port"].value()),
-                std::get<std::int64_t>(expected["port"].value()));
-      EXPECT_EQ(std::get<bool>(result["enabled"].value()),
-                std::get<bool>(expected["enabled"].value()));
+      const ServerConfig server(std::get<std::string>(input["host"].value()),
+                                std::get<std::int64_t>(input["port"].value()),
+                                std::get<bool>(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get<std::string>(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get<bool>(expected["enabled"].value()));
     }
   }
 }
@@ -130,6 +200,8 @@ TEST(Example, NestedValues) {
 `LoadDirectory` は読み込めないファイルをスキップするため、ケースの欠落を
 見逃さないよう、想定ファイル数または警告を確認してください。本プロジェクトの
 テストは警告や空のケースを検出します。プロジェクトルートで `make test` を
+実行してください。上記の例は別途ソースファイルに保存し、
+`cppdatasetutil` と `gtest_main` にリンクして、プロジェクトルートから
 実行してください。
 
 ## Linux パッケージ
@@ -161,12 +233,16 @@ SONAME は `libcppdatasetutil.so.0` です。実行時依存関係はビルド�
 パッケージの生成・内容・展開後のリンクを検証できます。RPM のテストには
 `rpm2cpio` と `cpio`、両テストには `readelf` も必要です。
 
-GitHub Actions の **Release Linux packages** は手動で実行します。ワークフローを
+GitHub Actions の **Release packages** は手動で実行します。ワークフローを
 デフォルトブランチに配置したうえで、対象のブランチまたはタグを選択します。
 その `VERSION` に対応する `vX.Y.Z` タグを使用します。選択したタグは
 `VERSION` と一致し、既存タグは選択したコミットを指している必要があります。タグが
-なければ両パッケージの生成成功後に作成し、DEB（Ubuntu 24.04、x86-64）と
-RPM（Fedora 44、x86-64）を添付した GitHub Release を公開します。
+なければ全ビルドの成功後に作成し、DEB（Ubuntu 24.04、x86-64）、
+RPM（Fedora 44、x86-64）、Windows x64 の DLL と CHM を添付した
+GitHub Release を公開します。Windows SDK の ZIP には DLL、インポート
+ライブラリ、ヘッダー、CHM、ライセンスを収録します。Windows ジョブは
+アーカイブされた Microsoft HTML Help Workshop インストーラーの SHA-256 を
+検証してからコンパイラを展開します。
 リリースノートには選択コミットの第一親から到達可能な最も近いバージョンタグ
 以降のコミット件名を記載し、タグがない場合は全履歴を記載します。
 既存のリリースは置き換えません。

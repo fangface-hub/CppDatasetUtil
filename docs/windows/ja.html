@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>CppDatasetUtil API</title>
+</head>
+<body>
+<nav><a href="index.html">Languages / &#x8a00;&#x8a9e;</a></nav>
+<h1>CppDatasetUtil API</h1>
+<h2>名前</h2>
+<p>
+CppDataSet - コメントを付けられる再帰的な Dataset 値
+</p>
+<h2>書式</h2>
+<pre>
+<b>#include &lt;Dataset.h&gt;</b>
+
+<b>class Dataset;</b>
+</pre>
+<h2>説明</h2>
+<p>
+<b>Dataset</b>
+は null、真偽値、符号付き 64 ビット整数、double、文字列、
+マップ、配列を保持します。マップと配列の要素も
+<b>Dataset</b>
+であり、各値に個別のコメントを設定できます。
+マップはキー順、配列は挿入された順序で保持されます。
+コピーやムーブでは値とコメントが一緒に扱われます。
+</p>
+<h2>型</h2>
+<p>
+<b>Dataset::Map</b>
+<b>std::map&lt;std::string, Dataset&gt;</b>
+です。
+</p>
+<p>
+<b>Dataset::Array</b>
+<b>std::vector&lt;Dataset&gt;</b>
+です。
+</p>
+<p>
+<b>Dataset::Value</b>
+null、bool、std::int64_t、double、std::string、Map、Array を
+保持する std::variant です。
+</p>
+<h2>コンストラクター</h2>
+<p>
+<b>Dataset()</b>
+はコメントのない null 値を作成します。nullptr、bool、int、
+std::int64_t、double、const char*、std::string、Map、Array からも
+構築できます。const char* に null ポインターを指定した場合は
+std::invalid_argument を送出します。
+</p>
+<h2>要素へのアクセス</h2>
+<p>
+<b>operator[](const std::string&amp; key)</b>
+マップの要素を参照します。変更可能な Dataset が null の場合は空のマップに
+変換し、存在しないキーには null 値を挿入します。その際、この値自身の
+コメントは保持されます。const Dataset に対するアクセスでは変更や挿入は
+行いません。マップ以外へのアクセスは std::logic_error を送出し、
+const アクセスでキーが存在しない場合は std::out_of_range を送出します。
+</p>
+<p>
+<b>operator[](std::size_t index)</b>
+配列の指定位置の要素を参照します。添字は 0 から始まり、要素の挿入は
+行いません。配列以外の場合は std::logic_error、範囲外の場合は
+std::out_of_range を送出します。
+</p>
+<p>
+親の Dataset を置き換えると、その要素への参照は無効になります。
+</p>
+<p>
+<b>value() const noexcept</b>
+保持する Value への const 参照を返します。std::get または
+std::get_if で型を指定して値を取得できます。型が異なる場合、
+std::get は std::bad_variant_access を送出し、std::get_if は
+null ポインターを返します。
+</p>
+<h2>コメント</h2>
+<p>
+<b>comments() const noexcept</b>
+コメント文字列の配列への const 参照を、保存順で返します。
+</p>
+<p>
+<b>set_comments(std::vector&lt;std::string&gt; comments)</b>
+コメントを置き換えます。先頭のコメント記号は付けずに指定します。
+文字列中の改行は保存時に複数のコメント行になります。
+YAML と TOML への保存では有効な UTF-8 が必要で、未対応の制御文字と
+Unicode の行区切り文字は使えません。TOML で構文上配置できないコメントは
+省略されます。CSV と JSON にはコメントを保存しません。
+代入または Load の成功時には既存のコメントも置き換わります。
+</p>
+<h2>ファイルの読み書き</h2>
+<p>
+<b>Load(const std::string&amp; path)</b>
+拡張子により CSV、JSON、YAML、TOML の形式を選択して読み込みます。
+対応する拡張子は .csv、.json、.yaml、.yml、.toml で、
+大文字と小文字は区別しません。コメントは読み込みません。
+成功時は既存の値とコメントを置き換え、失敗時は Dataset を変更しません。
+入出力エラー、不正な入力、未対応の拡張子や値に対して
+std::runtime_error を送出します。
+</p>
+<p>
+<b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
+ディレクトリ内の対応ファイルを読み込み、パスと Dataset の組を
+パス順の std::list&lt;std::pair&lt;std::string, Dataset&gt;&gt; で返します。
+recursive が true の場合のみサブディレクトリを再帰的に走査します。
+対応外の拡張子は無視します。ファイルとディレクトリのシンボリックリンクを
+たどり、同じ対象に複数のパスで到達した場合はパスごとに読み込みます。
+返されるパスには指定されたディレクトリ名とリンク名を保持します。
+ファイルのリンク自身の拡張子で形式を選択します。
+循環、リンク切れ、読み取れないエントリー、読み込みに失敗したファイルは
+標準エラーに警告を出してスキップします。開始ディレクトリを開けない場合は
+std::runtime_error を送出します。コメントは読み込みません。
+</p>
+<p>
+<b>Save(const std::string&amp; path) const</b>
+拡張子により形式を選択して保存します。CSV は同じキーを持つ空でない
+文字列値のマップの配列を必要とし、空配列は空ファイルとして保存されます。
+TOML のルートはマップでなければならず、null は保存できません。
+非有限の浮動小数点数は保存できません。YAML と TOML では可能な範囲で
+コメントを保存します。シリアライズはファイルを開く前に行いますが、
+書き込み中の入出力エラーではファイルが途中までしか保存されない場合や
+切り詰められる場合があります。入出力エラー、未対応の拡張子や、
+形式で表現できない値またはコメントに対して std::runtime_error を送出します。
+</p>
+<p>
+CSV の読み込みでは先頭行を列名とし、各行を文字列値のマップとして扱います。
+列名の重複や列数の不一致はエラーです。YAML は対応する基本スカラー型を解決し、
+複数文書、重複アンカー、再帰的な別名、未対応のタグを拒否します。
+TOML の日時型および非有限数は読み込めません。
+</p>
+<h2>使用例</h2>
+<pre>
+#include &lt;Dataset.h&gt;
+#include &lt;string&gt;
+#include &lt;variant&gt;
+
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto&amp; host = std::get&lt;std::string&gt;(
+    loaded["server"]["host"].value());
+</pre>
+<h2>データ駆動テスト</h2>
+<p>
+次の GoogleTest の例はプロジェクトルートから実行します。
+Dataset で Tests/data/server-config の 2 ファイルを読み込み、独立した
+ServerConfig モデルのエンドポイントと有効状態を期待値と比較します。
+ファイル数と空ケースの検査により、
+データファイルの読み込み漏れを検出できます。
+各ファイルの cases は入力値 input と期待値 expected を持ちます。
+</p>
+<p><code>Tests/data/server-config/basic.json</code></p>
+<pre>
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
+</pre>
+<p><code>Tests/data/server-config/alternate.toml</code></p>
+<pre>
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+</pre>
+<pre>
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+#include &lt;variant&gt;
+
+#include &lt;gtest/gtest.h&gt;
+#include "Dataset.h"
+
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto&amp; [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto&amp; cases = std::get&lt;Dataset::Array&gt;(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (std::size_t i = 0; i &lt; cases.size(); ++i) {
+      SCOPED_TRACE(i);
+      const Dataset&amp; input = cases[i]["input"];
+      const Dataset&amp; expected = cases[i]["expected"];
+      const ServerConfig server(std::get&lt;std::string&gt;(input["host"].value()),
+                                std::get&lt;std::int64_t&gt;(input["port"].value()),
+                                std::get&lt;bool&gt;(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get&lt;std::string&gt;(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get&lt;bool&gt;(expected["enabled"].value()));
+    }
+  }
+}
+</pre>
+<h2>関連項目</h2>
+<p>
+形式ごとの詳細な制約については、プロジェクトの README_ja.md を参照してください。
+
+</p>
+</body>
+</html>

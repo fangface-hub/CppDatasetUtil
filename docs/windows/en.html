@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>CppDatasetUtil API</title>
+</head>
+<body>
+<nav><a href="index.html">Languages / &#x8a00;&#x8a9e;</a></nav>
+<h1>CppDatasetUtil API</h1>
+<h2>NAME</h2>
+<p>
+CppDataSet - recursive Dataset value with optional comments
+</p>
+<h2>SYNOPSIS</h2>
+<pre>
+<b>#include &lt;Dataset.h&gt;</b>
+<b>class Dataset;</b>
+</pre>
+<h2>DESCRIPTION</h2>
+<p>
+Dataset holds null, bool, a signed 64-bit integer, double, string, map or
+array. Map and array elements are also Dataset values. Each value may have
+its own comments. Maps are sorted by key and arrays preserve their order.
+Copying and moving preserve both values and comments.
+</p>
+<h2>TYPES AND CONSTRUCTORS</h2>
+<p>
+<b>Dataset::Map</b>
+is std::map&lt;std::string, Dataset&gt;,
+<b>Dataset::Array</b>
+is std::vector&lt;Dataset&gt;, and
+<b>Dataset::Value</b>
+is a std::variant of the supported types. The default constructor creates null
+without comments. Constructors also accept nullptr, bool, int, std::int64_t,
+double, const char*, std::string, Map and Array. A null const char* throws
+std::invalid_argument.
+</p>
+<h2>ACCESS</h2>
+<p>
+<b>operator[](const std::string&amp; key)</b>
+Accesses a map entry. A mutable null value becomes an empty map, and a
+missing key is inserted with a null value. The parent value's comments are
+preserved. Const access changes nothing and throws std::out_of_range if the
+key is missing. Access to a non-map value throws std::logic_error.
+</p>
+<p>
+<b>operator[](std::size_t index)</b>
+Accesses an array element without inserting it. Indices start at zero. A
+non-array value throws std::logic_error; an out-of-range index throws
+std::out_of_range. Replacing the parent Dataset invalidates references to
+its elements.
+</p>
+<p>
+<b>value() const noexcept</b>
+Returns a const reference to Value. On a type mismatch, std::get throws
+std::bad_variant_access and std::get_if returns a null pointer.
+</p>
+<h2>COMMENTS</h2>
+<p>
+<b>comments() const noexcept</b>
+Returns a const reference to the comments in their stored order.
+</p>
+<p>
+<b>set_comments(std::vector&lt;std::string&gt; comments)</b>
+Replaces the comments. Specify text without a leading #; embedded line breaks
+produce multiple comment lines. YAML and TOML require valid UTF-8 and reject
+unsupported control characters and Unicode line separators. TOML comments
+that cannot be placed syntactically are omitted. CSV and JSON do not save
+comments. Assignment or a successful Load also replaces existing comments.
+</p>
+<h2>FILES</h2>
+<p>
+<b>Load(const std::string&amp; path)</b>
+Loads CSV, JSON, YAML or TOML based on the case-insensitive extension .csv,
+.json, .yaml, .yml or .toml. Comments are not loaded. Success replaces the
+value and comments; failure leaves the Dataset unchanged. I/O errors, invalid
+input, and unsupported extensions or values throw std::runtime_error.
+</p>
+<p>
+<b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
+Returns a std::list of path and Dataset pairs sorted by path. Subdirectories
+are traversed only when recursive=true. Unsupported extensions are ignored.
+Symbolic links to files and directories are followed; a target reached by
+multiple paths is loaded once per path. Returned paths retain the supplied
+directory and link names. A file link's own extension determines its format.
+Cycles, broken links, unreadable entries and failed files are skipped with a
+warning on stderr. A starting directory that cannot be opened throws
+std::runtime_error. Comments are not loaded.
+</p>
+<p>
+<b>Save(const std::string&amp; path) const</b>
+Saves according to the extension. CSV requires an array of nonempty maps
+with identical keys and string values; an empty array produces an empty file.
+The TOML root must be a map and null is unsupported. Non-finite floating-point
+numbers cannot be saved. YAML and TOML save representable comments.
+Serialization precedes opening the file, but a write error can leave it
+truncated or incomplete. I/O errors, unsupported extensions, and values or
+comments that cannot be represented throw std::runtime_error.
+</p>
+<p>
+CSV uses the first row as column names and loads each subsequent row as a
+map of strings. Duplicate names and inconsistent field counts are errors.
+YAML resolves supported core scalars and rejects multiple documents, duplicate
+anchors, recursive aliases and unsupported tags. TOML date/time values and
+non-finite numbers cannot be loaded.
+</p>
+<h2>EXAMPLE</h2>
+<pre>
+#include &lt;Dataset.h&gt;
+#include &lt;string&gt;
+#include &lt;variant&gt;
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto&amp; host = std::get&lt;std::string&gt;(
+    loaded["server"]["host"].value());
+</pre>
+<h2>DATA-DRIVEN TESTING</h2>
+<p>
+Run the following GoogleTest example from the project root. Dataset reads two
+files in Tests/data/server-config; the independent ServerConfig model is the
+test subject. Its endpoint and enabled state are compared with expected values.
+The file-count and nonempty-case checks help detect skipped data files.
+Each file contains cases with input and expected values:
+</p>
+<p><code>Tests/data/server-config/basic.json</code></p>
+<pre>
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
+</pre>
+<p><code>Tests/data/server-config/alternate.toml</code></p>
+<pre>
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+</pre>
+<pre>
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+#include &lt;variant&gt;
+
+#include &lt;gtest/gtest.h&gt;
+#include "Dataset.h"
+
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto&amp; [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto&amp; cases = std::get&lt;Dataset::Array&gt;(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (std::size_t i = 0; i &lt; cases.size(); ++i) {
+      SCOPED_TRACE(i);
+      const Dataset&amp; input = cases[i]["input"];
+      const Dataset&amp; expected = cases[i]["expected"];
+      const ServerConfig server(std::get&lt;std::string&gt;(input["host"].value()),
+                                std::get&lt;std::int64_t&gt;(input["port"].value()),
+                                std::get&lt;bool&gt;(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get&lt;std::string&gt;(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get&lt;bool&gt;(expected["enabled"].value()));
+    }
+  }
+}
+</pre>
+<h2>SEE ALSO</h2>
+<p>
+See README.md in the project for further format restrictions.
+
+</p>
+</body>
+</html>

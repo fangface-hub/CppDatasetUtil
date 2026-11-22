@@ -69,22 +69,70 @@ HTML을 생성합니다. API man 페이지는 [docs/](docs/)에서 관리합니�
 
 `Tests/data/`에는 테스트별 하위 디렉터리가 있습니다. `nested-values/`는
 맵 접근용 JSON과 TOML, `array-values/`는 배열 접근용 YAML과 JSON
-케이스를 포함합니다. 각 파일의 `cases` 배열에는 `input`과 `expected`가
-있습니다.
+케이스를 포함합니다. `server-config/`에는 모델 예제의 케이스가 있습니다.
+각 파일의 `cases` 배열에는 `input`과 `expected`가 있습니다. 예제에서
+사용하는 두 파일은 다음과 같습니다.
+
+`Tests/data/server-config/basic.json`:
 
 ```json
-{"cases":[{"input":{"host":"localhost","port":8080,"enabled":true},
-           "expected":{"host":"localhost","port":8080,"enabled":true}}]}
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
 ```
 
-프로젝트 루트에서 실행하는 GoogleTest 예제입니다.
+`Tests/data/server-config/alternate.toml`:
+
+```toml
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+```
+
+프로젝트 루트에서 실행하는 GoogleTest 예제입니다. `Dataset`은 케이스를
+읽고, 독립적인 모델 `ServerConfig`의 엔드포인트와 활성 상태를 검증합니다.
 
 ```cpp
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <variant>
+
 #include <gtest/gtest.h>
 #include "Dataset.h"
 
-TEST(Example, NestedValues) {
-  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
   ASSERT_EQ(files.size(), 2u);
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
@@ -94,16 +142,12 @@ TEST(Example, NestedValues) {
       SCOPED_TRACE(i);
       const Dataset& input = cases[i]["input"];
       const Dataset& expected = cases[i]["expected"];
-      Dataset result;
-      result["server"]["host"] = std::get<std::string>(input["host"].value());
-      result["server"]["port"] = std::get<std::int64_t>(input["port"].value());
-      result["enabled"] = std::get<bool>(input["enabled"].value());
-      EXPECT_EQ(std::get<std::string>(result["server"]["host"].value()),
-                std::get<std::string>(expected["host"].value()));
-      EXPECT_EQ(std::get<std::int64_t>(result["server"]["port"].value()),
-                std::get<std::int64_t>(expected["port"].value()));
-      EXPECT_EQ(std::get<bool>(result["enabled"].value()),
-                std::get<bool>(expected["enabled"].value()));
+      const ServerConfig server(std::get<std::string>(input["host"].value()),
+                                std::get<std::int64_t>(input["port"].value()),
+                                std::get<bool>(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get<std::string>(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get<bool>(expected["enabled"].value()));
     }
   }
 }
@@ -112,7 +156,9 @@ TEST(Example, NestedValues) {
 [Tests/DatasetTest.cpp](Tests/DatasetTest.cpp)에 다른 예제도 있습니다.
 `LoadDirectory`는 읽을 수 없는 파일을 건너뛰므로 예상 파일
 수나 경고를 확인하십시오. 프로젝트 테스트는 경고와 빈 케이스를
-검사합니다. 프로젝트 루트에서 `make test`를 실행합니다.
+검사합니다. 프로젝트 루트에서 `make test`를 실행합니다. 위 예제는 별도
+소스 파일로 저장하고 `cppdatasetutil`과 `gtest_main`에 링크한 후
+프로젝트 루트에서 실행합니다.
 
 ## Linux 패키지
 
@@ -138,12 +184,14 @@ UTF-8 로케일에서는 번역이 자동 선택됩니다. 예를 들어 로케�
 패키지 생성과 내용, 추출된 라이브러리 링크를 검사합니다. 두 테스트 모두
 `readelf`가 필요하며 RPM 테스트에는 `rpm2cpio`와 `cpio`도 필요합니다.
 
-GitHub Actions의 **Release Linux packages**는 수동 실행하며 기본
+GitHub Actions의 **Release packages**는 수동 실행하며 기본
 브랜치에 있어야 합니다. 선택한 브랜치 또는 태그의 `VERSION`이
 `vX.Y.Z` 태그를 결정합니다. 선택한 태그는 버전과 일치해야 하고 기존
-릴리스 태그는 선택한 커밋을 가리켜야 합니다. 태그가 없으면 두 빌드가
-성공한 후 생성합니다. GitHub 릴리스에는 DEB(Ubuntu 24.04, x86-64)와
-RPM(Fedora 44, x86-64)이 첨부됩니다. 릴리스 노트에는 선택 커밋의 첫
+릴리스 태그는 선택한 커밋을 가리켜야 합니다. 태그가 없으면 모든 빌드가
+성공한 후 생성합니다. GitHub 릴리스에는 DEB(Ubuntu 24.04, x86-64),
+RPM(Fedora 44, x86-64), Windows x64 DLL과 CHM이 첨부됩니다.
+Windows SDK ZIP에는 가져오기 라이브러리, 헤더와 라이선스도 포함됩니다.
+릴리스 노트에는 선택 커밋의 첫
 번째 부모에서 도달 가능한 가장 가까운 버전 태그 이후의 커밋 제목을,
 해당 태그가 없으면 전체 이력을 기록합니다. 기존 릴리스는 교체하지 않습니다.
 

@@ -63,21 +63,69 @@ Doxygen。
 
 `Tests/data/` 为每个测试项目提供子目录：`nested-values/` 包含映射访问的
 JSON 和 TOML 测试用例，`array-values/` 包含数组访问的 YAML 和 JSON
-测试用例。每个文件的 `cases` 数组包含 `input` 和 `expected`：
+测试用例，`server-config/` 包含模型示例的用例。每个文件的 `cases`
+数组包含 `input` 和 `expected`。示例使用的两个文件如下：
+
+`Tests/data/server-config/basic.json`:
 
 ```json
-{"cases":[{"input":{"host":"localhost","port":8080,"enabled":true},
-           "expected":{"host":"localhost","port":8080,"enabled":true}}]}
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
 ```
 
-下面的 GoogleTest 示例从项目根目录运行：
+`Tests/data/server-config/alternate.toml`:
+
+```toml
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+```
+
+下面的 GoogleTest 示例从项目根目录运行：`Dataset` 读取用例，独立的
+`ServerConfig` 模型是测试对象，测试其端点和启用状态：
 
 ```cpp
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <variant>
+
 #include <gtest/gtest.h>
 #include "Dataset.h"
 
-TEST(Example, NestedValues) {
-  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
   ASSERT_EQ(files.size(), 2u);
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
@@ -87,16 +135,12 @@ TEST(Example, NestedValues) {
       SCOPED_TRACE(i);
       const Dataset& input = cases[i]["input"];
       const Dataset& expected = cases[i]["expected"];
-      Dataset result;
-      result["server"]["host"] = std::get<std::string>(input["host"].value());
-      result["server"]["port"] = std::get<std::int64_t>(input["port"].value());
-      result["enabled"] = std::get<bool>(input["enabled"].value());
-      EXPECT_EQ(std::get<std::string>(result["server"]["host"].value()),
-                std::get<std::string>(expected["host"].value()));
-      EXPECT_EQ(std::get<std::int64_t>(result["server"]["port"].value()),
-                std::get<std::int64_t>(expected["port"].value()));
-      EXPECT_EQ(std::get<bool>(result["enabled"].value()),
-                std::get<bool>(expected["enabled"].value()));
+      const ServerConfig server(std::get<std::string>(input["host"].value()),
+                                std::get<std::int64_t>(input["port"].value()),
+                                std::get<bool>(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get<std::string>(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get<bool>(expected["enabled"].value()));
     }
   }
 }
@@ -105,6 +149,8 @@ TEST(Example, NestedValues) {
 [Tests/DatasetTest.cpp](Tests/DatasetTest.cpp) 包含更多示例。
 由于 `LoadDirectory` 会跳过无法读取的文件，请检查预期文件数或警告。
 项目测试会检查警告和空用例。请在项目根目录运行 `make test`。
+上面的示例需单独保存为源文件，链接 `cppdatasetutil` 和 `gtest_main`，
+然后从项目根目录运行。
 
 ## Linux 软件包
 
@@ -128,11 +174,12 @@ make deb   # dpkg-dev、dpkg-deb、make、C/C++ 工具
 测试链接解压后的库。两种测试都需要 `readelf`，RPM 测试还需要
 `rpm2cpio` 和 `cpio`。
 
-GitHub Actions 的 **Release Linux packages** 工作流需要手动运行，且必须
+GitHub Actions 的 **Release packages** 工作流需要手动运行，且必须
 位于默认分支。所选分支或标签中的 `VERSION` 决定 `vX.Y.Z` 标签。
 所选标签必须与版本匹配；已有发布标签必须指向所选提交。如果标签不存在，
-将在两个构建均成功后创建。GitHub Release 包含 DEB（Ubuntu 24.04、
-x86-64）和 RPM（Fedora 44、x86-64）。发布说明包含从所选提交的第一父
+将在所有构建成功后创建。GitHub Release 包含 DEB（Ubuntu 24.04、
+x86-64）、RPM（Fedora 44、x86-64）及 Windows x64 DLL 和 CHM。
+Windows SDK ZIP 还包含导入库、头文件和许可证。发布说明包含从所选提交的第一父
 提交可到达的最近版本标签之后的提交标题；如果没有该标签则包含完整历史。
 已有 Release 不会被替换。
 

@@ -70,21 +70,69 @@ compilatori C e C++17; la documentazione HTML richiede Doxygen.
 
 In `Tests/data/` ogni test ha una sottodirectory: `nested-values/` contiene
 casi JSON e TOML per le mappe, `array-values/` casi YAML e JSON per gli array.
-Ogni file contiene un array `cases` con `input` ed `expected`:
+`server-config/` contiene i casi del modello. Ogni file contiene un array
+`cases` con `input` ed `expected`. I due file dell'esempio:
+
+`Tests/data/server-config/basic.json`:
 
 ```json
-{"cases":[{"input":{"host":"localhost","port":8080,"enabled":true},
-           "expected":{"host":"localhost","port":8080,"enabled":true}}]}
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
 ```
 
-Esempio GoogleTest da eseguire dalla radice del progetto:
+`Tests/data/server-config/alternate.toml`:
+
+```toml
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+```
+
+Esempio GoogleTest dalla radice del progetto: `Dataset` legge i casi; il modello
+indipendente `ServerConfig` viene verificato per endpoint e stato:
 
 ```cpp
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <variant>
+
 #include <gtest/gtest.h>
 #include "Dataset.h"
 
-TEST(Example, NestedValues) {
-  const auto files = Dataset::LoadDirectory("Tests/data/nested-values");
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
   ASSERT_EQ(files.size(), 2u);
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
@@ -94,16 +142,12 @@ TEST(Example, NestedValues) {
       SCOPED_TRACE(i);
       const Dataset& input = cases[i]["input"];
       const Dataset& expected = cases[i]["expected"];
-      Dataset result;
-      result["server"]["host"] = std::get<std::string>(input["host"].value());
-      result["server"]["port"] = std::get<std::int64_t>(input["port"].value());
-      result["enabled"] = std::get<bool>(input["enabled"].value());
-      EXPECT_EQ(std::get<std::string>(result["server"]["host"].value()),
-                std::get<std::string>(expected["host"].value()));
-      EXPECT_EQ(std::get<std::int64_t>(result["server"]["port"].value()),
-                std::get<std::int64_t>(expected["port"].value()));
-      EXPECT_EQ(std::get<bool>(result["enabled"].value()),
-                std::get<bool>(expected["enabled"].value()));
+      const ServerConfig server(std::get<std::string>(input["host"].value()),
+                                std::get<std::int64_t>(input["port"].value()),
+                                std::get<bool>(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get<std::string>(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get<bool>(expected["enabled"].value()));
     }
   }
 }
@@ -112,7 +156,8 @@ TEST(Example, NestedValues) {
 [Tests/DatasetTest.cpp](Tests/DatasetTest.cpp) contiene altri esempi.
 Poiché `LoadDirectory` salta i file illeggibili, verificare il numero atteso o
 gli avvisi; i test controllano avvisi e casi vuoti. Eseguire `make test` dalla
-radice del progetto.
+radice del progetto. Salvare l'esempio separatamente, collegarlo con
+`cppdatasetutil` e `gtest_main` ed eseguirlo dalla radice del progetto.
 
 ## Pacchetti Linux
 
@@ -138,12 +183,14 @@ la sostituisce. Deve essere `X.Y.Z`, senza zeri iniziali salvo `0`.
 pacchetto e il collegamento al pacchetto estratto. Entrambi richiedono
 `readelf`; il test RPM richiede anche `rpm2cpio` e `cpio`.
 
-Il workflow GitHub Actions **Release Linux packages** viene avviato manualmente
+Il workflow GitHub Actions **Release packages** viene avviato manualmente
 e deve trovarsi nel branch predefinito. Il branch o tag scelto fornisce
 `VERSION`, che determina il tag `vX.Y.Z`. Il tag selezionato deve corrispondere
 alla versione; un tag di release esistente deve puntare al commit scelto. Se
-manca, viene creato dopo la riuscita di entrambe le compilazioni. La release
-GitHub contiene DEB (Ubuntu 24.04, x86-64) e RPM (Fedora 44, x86-64). Le note
+manca, viene creato dopo la riuscita di tutte le compilazioni. La release GitHub
+contiene DEB (Ubuntu 24.04, x86-64), RPM (Fedora 44, x86-64), DLL e CHM
+Windows x64. Uno ZIP SDK Windows include anche libreria di importazione, header
+e licenze. Le note
 contengono gli oggetti dei commit dal tag di versione più vicino raggiungibile
 dal primo genitore, oppure tutta la cronologia se non esiste. Una release
 esistente non viene sostituita.

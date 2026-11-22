@@ -16,6 +16,16 @@
 #include <variant>
 #include <vector>
 
+#if defined(_WIN32)
+#if defined(CPPDATASETUTIL_BUILD)
+#define CPPDATASETUTIL_API __declspec(dllexport)
+#else
+#define CPPDATASETUTIL_API __declspec(dllimport)
+#endif
+#else
+#define CPPDATASETUTIL_API
+#endif
+
 /**
  * @brief A recursively nested data value with optional comments.
  *
@@ -42,7 +52,7 @@
  * is supported only for YAML and TOML, subject to format restrictions.
  * See README.md for the full file format contract.
  */
-class Dataset {
+class CPPDATASETUTIL_API Dataset {
  public:
   /// String-keyed collection of values, ordered by key.
   using Map = std::map<std::string, Dataset>;

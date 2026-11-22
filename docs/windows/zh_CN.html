@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>CppDatasetUtil API</title>
+</head>
+<body>
+<nav><a href="index.html">Languages / &#x8a00;&#x8a9e;</a></nav>
+<h1>CppDatasetUtil API</h1>
+<h2>名称</h2>
+<p>
+CppDataSet - 带可选注释的递归 Dataset 值
+</p>
+<h2>用法</h2>
+<pre>
+<b>#include &lt;Dataset.h&gt;</b>
+<b>class Dataset;</b>
+</pre>
+<h2>描述</h2>
+<p>
+Dataset 可以保存 null、布尔值、有符号 64 位整数、double、字符串、
+映射或数组。映射和数组的元素也是 Dataset，每个值均可单独设置注释。
+映射按键排序，数组保持元素顺序。复制和移动同时处理值及其注释。
+</p>
+<h2>类型和构造函数</h2>
+<p>
+Dataset::Map 是 std::map&lt;std::string, Dataset&gt;，Dataset::Array 是
+std::vector&lt;Dataset&gt;，Dataset::Value 是包含支持类型的 std::variant。
+默认构造函数创建不带注释的 null。也可以从 nullptr、bool、int、
+std::int64_t、double、const char*、std::string、Map 和 Array 构造。
+向 const char* 传入空指针会抛出 std::invalid_argument。
+</p>
+<h2>访问</h2>
+<p>
+<b>operator[](const std::string&amp; key)</b>
+访问映射项。可修改的 null 值会先转换为空映射，不存在的键会以 null
+值插入；父值的注释保持不变。const 访问不会修改数据，键不存在时抛出
+std::out_of_range。对非映射值访问会抛出 std::logic_error。
+</p>
+<p>
+<b>operator[](std::size_t index)</b>
+访问数组元素，不会插入元素。索引从 0 开始。值不是数组时抛出
+std::logic_error，索引越界时抛出 std::out_of_range。替换父 Dataset
+会使其元素的引用失效。
+</p>
+<p>
+<b>value() const noexcept</b>
+返回 Value 的 const 引用。类型不匹配时，std::get 抛出
+std::bad_variant_access，std::get_if 返回空指针。
+</p>
+<h2>注释</h2>
+<p>
+<b>comments() const noexcept</b>
+返回注释的 const 引用，顺序与存储顺序相同。
+</p>
+<p>
+<b>set_comments(std::vector&lt;std::string&gt; comments)</b>
+替换注释。文本不应以 # 开头，换行会产生多个注释行。YAML 和 TOML
+要求有效的 UTF-8，并拒绝不支持的控制字符及 Unicode 行分隔符。
+无法按 TOML 语法放置的注释会被省略。CSV 和 JSON 不保存注释。
+赋值或成功调用 Load 也会替换现有注释。
+</p>
+<h2>文件</h2>
+<p>
+<b>Load(const std::string&amp; path)</b>
+根据扩展名 .csv、.json、.yaml、.yml 或 .toml 选择 CSV、JSON、YAML
+或 TOML，扩展名不区分大小写。不读取注释。成功时替换值和注释；
+失败时 Dataset 保持不变。输入输出错误、无效输入、不支持的扩展名
+或值会导致 std::runtime_error。
+</p>
+<p>
+<b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
+返回由路径和 Dataset 组成的 std::list，按路径排序。仅当 recursive=true
+时遍历子目录，忽略不支持的扩展名。会跟随文件和目录的符号链接；
+同一目标通过多个路径到达时，每个路径都会读取一次。返回路径保留
+指定的目录和链接名称。文件链接本身的扩展名决定格式。循环、失效链接、
+无法读取的条目及加载失败的文件会被跳过，并向标准错误输出警告。
+无法打开起始目录时抛出 std::runtime_error。不读取注释。
+</p>
+<p>
+<b>Save(const std::string&amp; path) const</b>
+根据扩展名保存。CSV 要求数组中的映射非空、具有相同的键且值均为
+字符串；空数组保存为空文件。TOML 根节点必须为映射且不支持 null。
+不能保存非有限浮点数。YAML 和 TOML 保存可表示的注释。序列化在打开
+文件之前完成，但写入时发生输入输出错误可能导致文件截断或不完整。
+输入输出错误、不支持的扩展名以及无法表示的值或注释会导致
+std::runtime_error。
+</p>
+<p>
+CSV 将首行用作列名，之后每行读取为字符串映射。重复列名和列数不一致
+均为错误。YAML 解析支持的基本标量类型，并拒绝多文档、重复锚点、
+递归别名和不支持的标签。TOML 日期时间及非有限数值不能读取。
+</p>
+<h2>示例</h2>
+<pre>
+#include &lt;Dataset.h&gt;
+#include &lt;string&gt;
+#include &lt;variant&gt;
+Dataset data;
+data["server"]["host"] = "localhost";
+data["server"]["host"].set_comments({"Server address"});
+data.Save("config.yaml");
+Dataset loaded;
+loaded.Load("config.yaml");
+const auto&amp; host = std::get&lt;std::string&gt;(
+    loaded["server"]["host"].value());
+</pre>
+<h2>数据驱动测试</h2>
+<p>
+以下 GoogleTest 示例从项目根目录运行。它读取
+Dataset 读取 Tests/data/server-config 中的两个文件，并比较独立的
+ServerConfig 模型的端点和启用状态与期望值。文件数量和非空用例检查有助于
+发现被跳过的数据文件。
+每个文件的用例都包含输入值 input 和期望值 expected：
+</p>
+<p><code>Tests/data/server-config/basic.json</code></p>
+<pre>
+{
+  "cases": [
+    {
+      "input": {"host": "localhost", "port": 8080, "enabled": true},
+      "expected": {"endpoint": "localhost:8080", "enabled": true}
+    },
+    {
+      "input": {"host": "127.0.0.1", "port": 0, "enabled": false},
+      "expected": {"endpoint": "127.0.0.1:0", "enabled": false}
+    }
+  ]
+}
+</pre>
+<p><code>Tests/data/server-config/alternate.toml</code></p>
+<pre>
+[[cases]]
+[cases.input]
+host = "example.net"
+port = 443
+enabled = false
+
+[cases.expected]
+endpoint = "example.net:443"
+enabled = false
+</pre>
+<pre>
+#include &lt;cstddef&gt;
+#include &lt;cstdint&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+#include &lt;variant&gt;
+
+#include &lt;gtest/gtest.h&gt;
+#include "Dataset.h"
+
+class ServerConfig {
+ public:
+  ServerConfig(std::string host, std::int64_t port, bool enabled)
+      : host_(std::move(host)), port_(port), enabled_(enabled) {}
+
+  std::string endpoint() const { return host_ + ":" + std::to_string(port_); }
+  bool enabled() const { return enabled_; }
+
+ private:
+  std::string host_;
+  std::int64_t port_;
+  bool enabled_;
+};
+
+TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
+  const auto files = Dataset::LoadDirectory("Tests/data/server-config");
+  ASSERT_EQ(files.size(), 2u);
+  for (const auto&amp; [path, dataset] : files) {
+    SCOPED_TRACE(path);
+    const auto&amp; cases = std::get&lt;Dataset::Array&gt;(dataset["cases"].value());
+    ASSERT_FALSE(cases.empty());
+    for (std::size_t i = 0; i &lt; cases.size(); ++i) {
+      SCOPED_TRACE(i);
+      const Dataset&amp; input = cases[i]["input"];
+      const Dataset&amp; expected = cases[i]["expected"];
+      const ServerConfig server(std::get&lt;std::string&gt;(input["host"].value()),
+                                std::get&lt;std::int64_t&gt;(input["port"].value()),
+                                std::get&lt;bool&gt;(input["enabled"].value()));
+      EXPECT_EQ(server.endpoint(),
+                std::get&lt;std::string&gt;(expected["endpoint"].value()));
+      EXPECT_EQ(server.enabled(), std::get&lt;bool&gt;(expected["enabled"].value()));
+    }
+  }
+}
+</pre>
+<h2>另见</h2>
+<p>
+有关各格式的其他限制，请参阅项目中的 README_zh.md。
+
+</p>
+</body>
+</html>

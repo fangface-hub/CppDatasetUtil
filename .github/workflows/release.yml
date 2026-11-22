@@ -1,4 +1,4 @@
-name: Release Linux packages
+name: Release packages
 
 on:
   workflow_dispatch:
@@ -96,8 +96,77 @@ jobs:
           path: dist/*.rpm
           if-no-files-found: error
 
+  windows:
+    needs: prepare
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: Obtain HTML Help compiler
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Join-Path $env:RUNNER_TEMP 'htmlhelp.exe'
+          $compiler = Join-Path $env:RUNNER_TEMP 'htmlhelp'
+          # Microsoft no longer hosts this installer; use the archived original.
+          $url = 'https://web.archive.org/web/20200918004813id_/https://download.microsoft.com/download/0/A/9/0A939EF6-E31C-430F-A3DF-DFAE7960D564/htmlhelp.exe'
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          $expected = 'B2B3140D42A818870C1AB13C1C7B8D4536F22BD994FA90AADE89729A6009A3AE'
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $expected) {
+            throw 'HTML Help installer checksum mismatch'
+          }
+          & "$env:ProgramFiles\7-Zip\7z.exe" e $installer hhc.exe hha.dll itcc.dll "-o$compiler" -y
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract HTML Help compiler' }
+          if (-not (Test-Path (Join-Path $compiler 'hhc.exe'))) {
+            throw 'HTML Help compiler was not extracted'
+          }
+      - name: Configure Windows build
+        shell: pwsh
+        run: cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64 "-DHTML_HELP_COMPILER=$env:RUNNER_TEMP\htmlhelp\hhc.exe"
+      - name: Build Windows DLL
+        run: cmake --build build-windows --config Release --parallel 2
+      - name: Test DLL consumer
+        run: ctest --test-dir build-windows -C Release --output-on-failure
+      - name: Build and verify Windows help
+        shell: pwsh
+        run: |
+          cmake --build build-windows --config Release --target windows_help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $help = 'build-windows\help\CppDatasetUtil.chm'
+          $listing = & "$env:ProgramFiles\7-Zip\7z.exe" l -slt $help
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect CHM' }
+          foreach ($topic in @('index', 'en', 'ja', 'de', 'fr', 'it', 'ko', 'zh_CN')) {
+            if ($listing -notcontains "Path = $topic.html") {
+              throw "Missing CHM topic: $topic.html"
+            }
+          }
+          & "$env:ProgramFiles\7-Zip\7z.exe" t $help
+          if ($LASTEXITCODE -ne 0) { throw 'CHM integrity check failed' }
+      - name: Prepare Windows release assets
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdk = Join-Path $env:RUNNER_TEMP 'cppdatasetutil-sdk'
+          New-Item -ItemType Directory -Path windows-release, $sdk, "$sdk\licenses" | Out-Null
+          Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\help\CppDatasetUtil.chm windows-release
+          Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\Release\cppdatasetutil.lib, Include\Dataset.h, build-windows\help\CppDatasetUtil.chm $sdk
+          Copy-Item LICENSE "$sdk\licenses\cppdatasetutil-LICENSE"
+          Copy-Item third_party\json\LICENSE.MIT "$sdk\licenses\json-LICENSE"
+          Copy-Item third_party\libyaml\License "$sdk\licenses\libyaml-LICENSE"
+          Copy-Item third_party\toml11\LICENSE "$sdk\licenses\toml11-LICENSE"
+          Compress-Archive -Path "$sdk\*" -DestinationPath "windows-release\cppdatasetutil-$env:PACKAGE_VERSION-windows-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: windows-release/*
+          if-no-files-found: error
+
   release:
-    needs: [prepare, deb, rpm]
+    needs: [prepare, deb, rpm, windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -114,6 +183,10 @@ jobs:
         with:
           name: rpm-package
           path: packages/rpm
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-package
+          path: packages/windows
       - name: Create tag and release
         shell: bash
         env:
@@ -147,4 +220,6 @@ jobs:
             git log --format='- %s (%h)' "$range"
           } > "$RUNNER_TEMP/release-notes.md"
           gh release create "$RELEASE_TAG" packages/deb/*.deb packages/rpm/*.rpm \
+            packages/windows/cppdatasetutil.dll packages/windows/CppDatasetUtil.chm \
+            packages/windows/*.zip \
             --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
