@@ -67,6 +67,14 @@ class CPPDATASETUTIL_API Dataset {
   using Value = std::variant<std::nullptr_t, bool, std::int64_t, double,
                              std::string, Map, Array>;
 
+  /**
+   * @brief Maximum number of nested maps and arrays loaded or saved.
+   *
+   * Loading keeps any map or array nested deeper than this as a string holding
+   * its compact JSON text, which Parse() converts back to a Dataset.
+   */
+  static constexpr std::size_t kMaxNestingDepth = 256;
+
   /// Construct a null value with no comments.
   Dataset() = default;
   /// Construct a null value.
@@ -168,6 +176,10 @@ class CPPDATASETUTIL_API Dataset {
    * YAML resolves supported core scalar types and rejects multiple documents,
    * duplicate anchors, recursive aliases, and unsupported tags. TOML
    * date/time values and non-finite numbers are unsupported.
+   * Maps and arrays nested deeper than kMaxNestingDepth are kept as strings
+   * holding their compact JSON text (see Parse()); TOML nested more than
+   * twice that deep is rejected. YAML anchors cannot be defined inside such
+   * deeply nested values.
    * Comments are not loaded; a successful load replaces the value and its
    * existing comments. On failure this Dataset is left unchanged.
    *
@@ -176,6 +188,23 @@ class CPPDATASETUTIL_API Dataset {
    * @see README.md for further format restrictions.
    */
   void Load(const std::string& path);
+
+  /**
+   * @brief Parse CSV, JSON, YAML, or TOML text.
+   * @param text Complete document text.
+   * @param format Case-insensitive format name: `csv`, `json`, `yaml`, `yml`,
+   *     or `toml`. Defaults to `json`.
+   * @return The parsed value, without comments.
+   *
+   * Follows the same rules as Load(), including the nesting limit. Use this
+   * to expand a string holding the JSON text of a subtree that Load() kept
+   * because it was nested deeper than kMaxNestingDepth.
+   *
+   * @throws std::runtime_error on invalid input, an unsupported format, or
+   *     values that the data model cannot represent.
+   */
+  static Dataset Parse(const std::string& text,
+                       const std::string& format = "json");
 
   /**
    * @brief Load supported files from a directory.
@@ -204,7 +233,8 @@ class CPPDATASETUTIL_API Dataset {
    * CSV requires an array of nonempty string-valued maps with identical keys;
    * an empty array produces an empty file. TOML requires a root map and does
    * not support null. Non-finite doubles cannot be saved. YAML and TOML save
-   * comments where supported; CSV and JSON do not. Serialization is performed
+   * comments where supported; CSV and JSON do not. Values nested deeper than
+   * kMaxNestingDepth cannot be saved. Serialization is performed
    * before opening the file, but an I/O failure during writing may leave it
    * truncated or incomplete.
    *

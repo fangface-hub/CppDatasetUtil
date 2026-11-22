@@ -326,6 +326,58 @@ TEST_F(FormatTest, RejectsInvalidInputWithoutChangingDataset) {
 }
 
 /**
+ * @brief Verify nesting beyond the limit is kept as JSON text.
+ * @test Load JSON, YAML, and TOML nested deeper than the limit without
+ *     crashing, expand the retained text with Parse(), and reject unsafe TOML
+ *     and unsaveable depth.
+ */
+TEST_F(FormatTest, KeepsDeepNestingAsText) {
+  const auto nested = [](std::size_t levels) {
+    return std::string(levels, '[') + "1" + std::string(levels, ']');
+  };
+  const auto leaf = [](const Dataset& root) {
+    const Dataset* node = &root;
+    std::size_t levels = 0;
+    while (const auto* array = std::get_if<Dataset::Array>(&node->value())) {
+      node = &(*array)[0];
+      ++levels;
+    }
+    return std::make_pair(levels, node);
+  };
+  constexpr std::size_t kLevels = 5000;
+  for (const std::string name : {"deep.json", "deep.yaml"}) {
+    SCOPED_TRACE(name);
+    const auto path = Path(name);
+    Write(path, nested(kLevels));
+    Dataset data;
+    data.Load(path);
+    const auto [levels, node] = leaf(data);
+    EXPECT_EQ(levels, Dataset::kMaxNestingDepth);
+    const auto* text = std::get_if<std::string>(&node->value());
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(*text, nested(kLevels - Dataset::kMaxNestingDepth));
+    EXPECT_EQ(leaf(Dataset::Parse(*text)).first, Dataset::kMaxNestingDepth);
+  }
+
+  const auto toml = Path("deep.toml");
+  Write(toml, "a = " + nested(300) + "\n");
+  Dataset data;
+  data.Load(toml);
+  const auto [levels, node] = leaf(data["a"]);
+  EXPECT_EQ(levels, Dataset::kMaxNestingDepth - 1);
+  EXPECT_EQ(std::get<std::string>(node->value()), nested(300 - 255));
+  Write(toml, "a = " + nested(5000) + "\n");
+  EXPECT_THROW(data.Load(toml), std::runtime_error);
+  EXPECT_EQ(std::get<std::string>(leaf(data["a"]).second->value()),
+            nested(300 - 255));
+
+  Dataset too_deep = 1;
+  for (std::size_t i = 0; i <= Dataset::kMaxNestingDepth; ++i)
+    too_deep = Dataset::Array{too_deep};
+  EXPECT_THROW(too_deep.Save(Path("too-deep.json")), std::runtime_error);
+}
+
+/**
  * @brief Verify unsupported output values are rejected.
  * @test Reject non-string or mismatched CSV records and non-finite values;
  *     preserve an existing CSV file when serialization fails.

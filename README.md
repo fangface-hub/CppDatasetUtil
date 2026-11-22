@@ -65,6 +65,12 @@ inside inline tables, are omitted.
 - TOML: The root must be a table. Saving null, loading date/time values, and
   using non-finite floating-point numbers are errors.
 
+Maps and arrays nested deeper than `Dataset::kMaxNestingDepth` (256) are not
+loaded as `Dataset` trees. Each such value is kept as a string holding its
+compact JSON text; pass it to `Dataset::Parse(text)` to convert it. YAML
+anchors cannot be defined inside these values, TOML nested more than twice
+the limit is rejected, and `Save` rejects values nested beyond the limit.
+
 Run `make` to build `build/libcppdatasetutil.so`, `make test` to run the
 GoogleTest suite, and `make doc` to generate Doxygen HTML documentation.
 The generated documentation includes a Test List describing each GoogleTest

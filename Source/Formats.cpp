@@ -32,25 +32,127 @@
 namespace {
 
 using Json = nlohmann::json;
-using JsonAdapter = decltype(nlohmann::detail::input_adapter(
-    std::declval<const std::string&>()));
-using JsonDomReader = nlohmann::detail::json_sax_dom_parser<Json, JsonAdapter>;
+constexpr std::size_t kMaxDepth = Dataset::kMaxNestingDepth;
+// TOML is parsed recursively by toml11, so deeper input is rejected up front.
+constexpr std::size_t kMaxTomlDepth = 2 * Dataset::kMaxNestingDepth;
 
 /**
- * @brief Reject integer tokens that the JSON parser falls back to double.
+ * @brief Build a Dataset from JSON parser events without recursion.
  *
- * The parser otherwise converts integers beyond its integer range to
- * floating-point values, silently losing their original integer type.
+ * Containers nested deeper than kMaxDepth are not built; their compact JSON
+ * text is kept as a string value instead. Integer tokens that the parser would
+ * otherwise fall back to double are rejected to preserve the integer type.
  */
-class JsonReader : public JsonDomReader {
+class JsonBuilder {
  public:
-  explicit JsonReader(Json& result) : JsonDomReader(result, true) {}
+  explicit JsonBuilder(Dataset& result) : result_(result) {}
 
-  bool number_float(double value, const std::string& text) {
+  bool null() { return Add(nullptr, "null"); }
+  bool boolean(bool value) { return Add(value, value ? "true" : "false"); }
+  bool number_integer(Json::number_integer_t value) {
+    return Add(static_cast<std::int64_t>(value), std::to_string(value));
+  }
+  bool number_unsigned(Json::number_unsigned_t value) {
+    if (raw_depth_ == 0 &&
+        value > static_cast<std::uint64_t>(
+                    std::numeric_limits<std::int64_t>::max()))
+      throw std::runtime_error("Integer outside int64 range");
+    return Add(static_cast<std::int64_t>(value), std::to_string(value));
+  }
+  bool number_float(Json::number_float_t value, const std::string& text) {
     if (text.find_first_of(".eE") == std::string::npos)
       throw std::runtime_error("JSON integer outside int64 range");
-    return JsonDomReader::number_float(value, text);
+    if (raw_depth_ == 0 && !std::isfinite(value))
+      throw std::runtime_error("Non-finite number");
+    return Add(value, text);
   }
+  bool string(std::string& value) { return Add(value, Json(value).dump()); }
+  bool binary(Json::binary_t&) { throw std::runtime_error("Unsupported JSON"); }
+  bool start_object(std::size_t) { return Start(true); }
+  bool key(std::string& value) {
+    if (raw_depth_ > 0) {
+      Separate();
+      raw_ += Json(value).dump() + ':';
+      after_key_ = true;
+    } else {
+      stack_.back().key = value;
+    }
+    return true;
+  }
+  bool end_object() { return End('}'); }
+  bool start_array(std::size_t) { return Start(false); }
+  bool end_array() { return End(']'); }
+  template <typename Error>
+  bool parse_error(std::size_t, const std::string&, const Error& error) {
+    throw error;
+  }
+
+ private:
+  struct Frame {
+    bool is_map;
+    Dataset::Map map;
+    Dataset::Array array;
+    std::string key;
+  };
+
+  void Separate() {
+    if (after_key_) {
+      after_key_ = false;
+    } else {
+      if (!first_.back()) raw_ += ',';
+      first_.back() = false;
+    }
+  }
+
+  bool Add(Dataset value, const std::string& text) {
+    if (raw_depth_ > 0) {
+      Separate();
+      raw_ += text;
+    } else if (stack_.empty()) {
+      result_ = std::move(value);
+    } else if (stack_.back().is_map) {
+      stack_.back().map.insert_or_assign(stack_.back().key, std::move(value));
+    } else {
+      stack_.back().array.push_back(std::move(value));
+    }
+    return true;
+  }
+
+  bool Start(bool is_map) {
+    if (raw_depth_ == 0 && stack_.size() < kMaxDepth) {
+      stack_.push_back({is_map, {}, {}, {}});
+      return true;
+    }
+    if (raw_depth_ > 0) Separate();
+    ++raw_depth_;
+    first_.push_back(true);
+    raw_ += is_map ? '{' : '[';
+    return true;
+  }
+
+  bool End(char close) {
+    if (raw_depth_ > 0) {
+      raw_ += close;
+      first_.pop_back();
+      if (--raw_depth_ > 0) return true;
+      after_key_ = false;
+      std::string text = std::move(raw_);
+      raw_.clear();
+      return Add(std::move(text), "");
+    }
+    Frame frame = std::move(stack_.back());
+    stack_.pop_back();
+    return Add(frame.is_map ? Dataset(std::move(frame.map))
+                            : Dataset(std::move(frame.array)),
+               "");
+  }
+
+  Dataset& result_;
+  std::vector<Frame> stack_;
+  std::size_t raw_depth_ = 0;
+  std::string raw_;
+  std::vector<bool> first_;
+  bool after_key_ = false;
 };
 
 std::string FileExtension(const std::string& path) {
@@ -148,39 +250,6 @@ void CollectFiles(const std::filesystem::path& directory, bool recursive,
     }
   }
   ancestors.erase(canonical);
-}
-
-Dataset FromJson(const Json& value) {
-  if (value.is_null()) return nullptr;
-  if (value.is_boolean()) return value.get<bool>();
-  if (value.is_number_unsigned()) {
-    const auto number = value.get<std::uint64_t>();
-    if (number >
-        static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
-      throw std::runtime_error("Integer outside int64 range");
-    }
-    return static_cast<std::int64_t>(number);
-  }
-  if (value.is_number_integer()) return value.get<std::int64_t>();
-  if (value.is_number_float()) {
-    const double number = value.get<double>();
-    if (!std::isfinite(number)) throw std::runtime_error("Non-finite number");
-    return number;
-  }
-  if (value.is_string()) return value.get<std::string>();
-  if (value.is_array()) {
-    Dataset::Array result;
-    for (const auto& item : value) result.push_back(FromJson(item));
-    return result;
-  }
-  if (value.is_object()) {
-    Dataset::Map result;
-    for (auto it = value.begin(); it != value.end(); ++it) {
-      result.emplace(it.key(), FromJson(it.value()));
-    }
-    return result;
-  }
-  throw std::runtime_error("Unsupported JSON value");
 }
 
 Json ToJson(const Dataset& dataset) {
@@ -315,7 +384,13 @@ std::string SaveYaml(const Dataset& dataset) {
   return output + "\n";
 }
 
-Dataset FromToml(const toml::value& value) {
+/**
+ * @brief Convert a TOML value, keeping containers beyond the nesting limit as
+ * compact JSON text.
+ *
+ * Recursion is bounded because CheckTomlDepth() rejects deeper input.
+ */
+Dataset FromToml(const toml::value& value, std::size_t depth, bool collapse) {
   if (value.is_boolean()) return value.as_boolean();
   if (value.is_integer()) return static_cast<std::int64_t>(value.as_integer());
   if (value.is_floating()) {
@@ -324,19 +399,107 @@ Dataset FromToml(const toml::value& value) {
     return number;
   }
   if (value.is_string()) return value.as_string();
-  if (value.is_array()) {
-    Dataset::Array result;
-    for (const auto& item : value.as_array()) result.push_back(FromToml(item));
-    return result;
-  }
-  if (value.is_table()) {
-    Dataset::Map result;
-    for (const auto& item : value.as_table()) {
-      result.emplace(item.first, FromToml(item.second));
+  if (value.is_array() || value.is_table()) {
+    if (collapse && depth >= kMaxDepth)
+      return ToJson(FromToml(value, 0, false)).dump();
+    if (value.is_array()) {
+      Dataset::Array result;
+      for (const auto& item : value.as_array())
+        result.push_back(FromToml(item, depth + 1, collapse));
+      return result;
     }
+    Dataset::Map result;
+    for (const auto& item : value.as_table())
+      result.emplace(item.first, FromToml(item.second, depth + 1, collapse));
     return result;
   }
   throw std::runtime_error("TOML date/time values are not supported");
+}
+
+/**
+ * @brief Reject TOML text whose nesting could exhaust the parser's stack.
+ *
+ * This approximates nesting from inline brackets, table header keys, and
+ * dotted keys while skipping strings and comments. Valid documents within
+ * kMaxTomlDepth are never rejected.
+ */
+void CheckTomlDepth(const std::string& text) {
+  struct Frame {
+    char type;
+    std::size_t carried;
+  };
+  std::vector<Frame> frames;
+  std::size_t carried_sum = 0;
+  std::size_t key_dots = 0;
+  bool in_key = true;
+  bool header = false;
+  bool line_start = true;
+  const auto check = [&](std::size_t extra) {
+    if (frames.size() + carried_sum + extra + 1 > kMaxTomlDepth)
+      throw std::runtime_error("TOML nesting is too deep");
+  };
+  for (std::size_t i = 0; i < text.size(); ++i) {
+    const char c = text[i];
+    if (c == '#') {
+      while (i < text.size() && text[i] != '\n') ++i;
+      --i;
+    } else if (c == '"' || c == '\'') {
+      const bool multiline = text.compare(i, 3, std::string(3, c)) == 0;
+      i += multiline ? 3 : 1;
+      for (; i < text.size(); ++i) {
+        if (c == '"' && text[i] == '\\') {
+          ++i;
+        } else if (text[i] == c &&
+                   (!multiline || text.compare(i, 3, std::string(3, c)) == 0)) {
+          if (multiline) {
+            // Quotes directly before the closing delimiter belong to the text.
+            while (i + 3 < text.size() && text[i + 3] == c) ++i;
+            i += 2;
+          }
+          break;
+        } else if (!multiline && text[i] == '\n') {
+          break;
+        }
+      }
+      line_start = false;
+    } else if (c == '\n') {
+      header = false;
+      in_key = frames.empty() || frames.back().type == '{';
+      if (frames.empty()) key_dots = 0;
+      line_start = true;
+    } else if (c == '[' && line_start && frames.empty()) {
+      header = true;
+      in_key = true;
+      key_dots = 0;
+      line_start = false;
+    } else if (c == ']' && header) {
+      check(key_dots);
+      header = false;
+      in_key = false;
+    } else if (c == '[' || c == '{') {
+      check(key_dots);
+      frames.push_back({c, key_dots});
+      carried_sum += key_dots;
+      key_dots = 0;
+      in_key = c == '{';
+      line_start = false;
+    } else if ((c == ']' || c == '}') && !frames.empty()) {
+      carried_sum -= frames.back().carried;
+      frames.pop_back();
+      in_key = !frames.empty() && frames.back().type == '{';
+      key_dots = 0;
+    } else if (c == '.' && in_key) {
+      ++key_dots;
+    } else if (c == '=' && in_key && !header) {
+      check(key_dots);
+      in_key = false;
+    } else if (c == ',' && !frames.empty()) {
+      in_key = frames.back().type == '{';
+      key_dots = 0;
+    } else if (c != ' ' && c != '\t' && c != '\r') {
+      line_start = false;
+    }
+  }
 }
 
 /**
@@ -506,6 +669,40 @@ std::string SaveCsv(const Dataset& data) {
   return result;
 }
 
+/// Count the container levels of a value, using recursion bounded by the
+/// nesting limit.
+std::size_t Depth(const Dataset& dataset) {
+  std::size_t deepest = 0;
+  if (const auto* array = std::get_if<Dataset::Array>(&dataset.value())) {
+    for (const auto& item : *array) deepest = std::max(deepest, Depth(item));
+    return deepest + 1;
+  }
+  if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+    for (const auto& item : *map)
+      deepest = std::max(deepest, Depth(item.second));
+    return deepest + 1;
+  }
+  return 0;
+}
+
+/// Check iteratively whether a value nests containers deeper than the limit.
+bool ExceedsDepth(const Dataset& root, std::size_t limit) {
+  std::vector<std::pair<const Dataset*, std::size_t>> pending{{&root, 0}};
+  while (!pending.empty()) {
+    const auto [node, level] = pending.back();
+    pending.pop_back();
+    if (const auto* array = std::get_if<Dataset::Array>(&node->value())) {
+      if (level + 1 > limit) return true;
+      for (const auto& item : *array) pending.emplace_back(&item, level + 1);
+    } else if (const auto* map = std::get_if<Dataset::Map>(&node->value())) {
+      if (level + 1 > limit) return true;
+      for (const auto& item : *map)
+        pending.emplace_back(&item.second, level + 1);
+    }
+  }
+  return false;
+}
+
 std::string YamlString(const yaml_char_t* text) {
   return text ? reinterpret_cast<const char*>(text) : "";
 }
@@ -608,7 +805,7 @@ class YamlReader {
     if (event_.type == YAML_STREAM_END_EVENT) return nullptr;
     Expect(YAML_DOCUMENT_START_EVENT);
     Next();
-    Dataset result = ReadNode();
+    Dataset result = ReadNode(0);
     Expect(YAML_DOCUMENT_END_EVENT);
     Next();
     Expect(YAML_STREAM_END_EVENT);
@@ -640,12 +837,125 @@ class YamlReader {
     if (!anchor.empty() && !anchor_names_.insert(anchor).second)
       throw std::runtime_error("Duplicate YAML anchor: " + anchor);
   }
-  Dataset ReadNode() {
+
+  // Validate a map key event and return its name.
+  std::string ReadKey() {
+    if (event_.type != YAML_SCALAR_EVENT)
+      throw std::runtime_error("YAML map keys must be scalar strings");
+    const auto& key = event_.data.scalar;
+    const auto tag = YamlString(key.tag);
+    if (!tag.empty() && tag != "!" && tag != "tag:yaml.org,2002:str")
+      throw std::runtime_error("YAML map keys must be strings");
+    return std::string(reinterpret_cast<const char*>(key.value), key.length);
+  }
+
+  /**
+   * @brief Convert the collection starting at the current event to JSON text.
+   *
+   * Used beyond the nesting limit. Events are consumed iteratively; anchors
+   * cannot be defined inside the collection, but aliases to earlier anchors
+   * are expanded. The current event is left after the collection's end.
+   */
+  std::string ReadRawCollection() {
+    struct Level {
+      bool is_map;
+      bool expect_key;
+      bool first;
+      std::set<std::string> keys;
+    };
+    std::vector<Level> levels;
+    std::string text;
+    auto expecting_key = [&]() {
+      return !levels.empty() && levels.back().is_map &&
+             levels.back().expect_key;
+    };
+    // Emit the separator for a value and advance the enclosing level.
+    auto before_value = [&]() {
+      if (levels.empty()) return;
+      Level& level = levels.back();
+      if (level.is_map) {
+        level.expect_key = true;
+      } else {
+        if (!level.first) text += ',';
+        level.first = false;
+      }
+    };
+    auto reject_anchor = [&](const yaml_char_t* anchor) {
+      if (!YamlString(anchor).empty())
+        throw std::runtime_error(
+            "YAML anchors are unsupported in deeply nested values");
+    };
+    do {
+      switch (event_.type) {
+        case YAML_SEQUENCE_START_EVENT:
+        case YAML_MAPPING_START_EVENT: {
+          const bool is_map = event_.type == YAML_MAPPING_START_EVENT;
+          if (expecting_key())
+            throw std::runtime_error("YAML map keys must be scalar strings");
+          reject_anchor(is_map ? event_.data.mapping_start.anchor
+                               : event_.data.sequence_start.anchor);
+          CheckTag(is_map ? event_.data.mapping_start.tag
+                          : event_.data.sequence_start.tag,
+                   is_map ? "map" : "seq");
+          before_value();
+          levels.push_back({is_map, true, true, {}});
+          text += is_map ? '{' : '[';
+          break;
+        }
+        case YAML_SEQUENCE_END_EVENT:
+        case YAML_MAPPING_END_EVENT:
+          text += levels.back().is_map ? '}' : ']';
+          levels.pop_back();
+          break;
+        case YAML_SCALAR_EVENT: {
+          const auto& scalar = event_.data.scalar;
+          reject_anchor(scalar.anchor);
+          if (expecting_key()) {
+            Level& level = levels.back();
+            const std::string name = ReadKey();
+            if (!level.keys.insert(name).second)
+              throw std::runtime_error("Duplicate YAML map key: " + name);
+            if (!level.first) text += ',';
+            level.first = false;
+            text += Json(name).dump() + ':';
+            level.expect_key = false;
+            break;
+          }
+          before_value();
+          text +=
+              ToJson(YamlScalar(std::string(
+                                    reinterpret_cast<const char*>(scalar.value),
+                                    scalar.length),
+                                YamlString(scalar.tag),
+                                scalar.style == YAML_PLAIN_SCALAR_STYLE))
+                  .dump();
+          break;
+        }
+        case YAML_ALIAS_EVENT: {
+          const auto it = anchors_.find(YamlString(event_.data.alias.anchor));
+          if (it == anchors_.end())
+            throw std::runtime_error("Unknown or recursive YAML alias");
+          if (expecting_key())
+            throw std::runtime_error("YAML map keys must be scalar strings");
+          before_value();
+          text += ToJson(it->second).dump();
+          break;
+        }
+        default:
+          throw std::runtime_error("Unsupported YAML node");
+      }
+      Next();
+    } while (!levels.empty());
+    return text;
+  }
+
+  Dataset ReadNode(std::size_t depth) {
     if (event_.type == YAML_ALIAS_EVENT) {
       const auto it = anchors_.find(YamlString(event_.data.alias.anchor));
       if (it == anchors_.end())
         throw std::runtime_error("Unknown or recursive YAML alias");
       Dataset result = it->second;
+      if (depth + Depth(result) > kMaxDepth) result = ToJson(result).dump();
       Next();
       return result;
     }
@@ -664,36 +974,38 @@ class YamlReader {
       anchor = YamlString(event_.data.sequence_start.anchor);
       ReserveAnchor(anchor);
       CheckTag(event_.data.sequence_start.tag, "seq");
-      Dataset::Array items;
-      Next();
-      while (event_.type != YAML_SEQUENCE_END_EVENT)
-        items.push_back(ReadNode());
-      Next();
-      result = std::move(items);
+      if (depth >= kMaxDepth) {
+        result = ReadRawCollection();
+      } else {
+        Dataset::Array items;
+        Next();
+        while (event_.type != YAML_SEQUENCE_END_EVENT)
+          items.push_back(ReadNode(depth + 1));
+        Next();
+        result = std::move(items);
+      }
     } else if (event_.type == YAML_MAPPING_START_EVENT) {
       anchor = YamlString(event_.data.mapping_start.anchor);
       ReserveAnchor(anchor);
       CheckTag(event_.data.mapping_start.tag, "map");
-      Dataset::Map items;
-      Next();
-      while (event_.type != YAML_MAPPING_END_EVENT) {
-        if (event_.type != YAML_SCALAR_EVENT)
-          throw std::runtime_error("YAML map keys must be scalar strings");
-        const auto& key = event_.data.scalar;
-        const auto tag = YamlString(key.tag);
-        if (!tag.empty() && tag != "!" && tag != "tag:yaml.org,2002:str")
-          throw std::runtime_error("YAML map keys must be strings");
-        std::string name(reinterpret_cast<const char*>(key.value), key.length);
-        const std::string key_anchor = YamlString(key.anchor);
-        ReserveAnchor(key_anchor);
-        if (!key_anchor.empty()) anchors_.emplace(key_anchor, Dataset(name));
+      if (depth >= kMaxDepth) {
+        result = ReadRawCollection();
+      } else {
+        Dataset::Map items;
         Next();
-        Dataset value = ReadNode();
-        if (!items.emplace(name, std::move(value)).second)
-          throw std::runtime_error("Duplicate YAML map key: " + name);
+        while (event_.type != YAML_MAPPING_END_EVENT) {
+          std::string name = ReadKey();
+          const std::string key_anchor = YamlString(event_.data.scalar.anchor);
+          ReserveAnchor(key_anchor);
+          if (!key_anchor.empty()) anchors_.emplace(key_anchor, Dataset(name));
+          Next();
+          Dataset value = ReadNode(depth + 1);
+          if (!items.emplace(name, std::move(value)).second)
+            throw std::runtime_error("Duplicate YAML map key: " + name);
+        }
+        Next();
+        result = std::move(items);
       }
-      Next();
-      result = std::move(items);
     } else {
       throw std::runtime_error("Unsupported YAML node");
     }
@@ -708,7 +1020,40 @@ class YamlReader {
   std::set<std::string> anchor_names_;
 };
 
+Dataset ParseContent(const std::string& content, const std::string& format,
+                     const std::string& name) {
+  try {
+    if (format == "csv") return LoadCsv(content);
+    if (format == "json") {
+      Dataset result;
+      JsonBuilder builder(result);
+      if (!Json::sax_parse(content, &builder))
+        throw std::runtime_error("Invalid JSON in " + name);
+      return result;
+    }
+    if (format == "yaml" || format == "yml") return YamlReader(content).Read();
+    CheckTomlDepth(content);
+    std::istringstream stream(content);
+    return FromToml(toml::parse(stream, name), 0, true);
+  } catch (const Json::exception& error) {
+    throw std::runtime_error("Invalid JSON in " + name + ": " + error.what());
+  } catch (const toml::exception& error) {
+    throw std::runtime_error("Invalid TOML in " + name + ": " + error.what());
+  }
+}
+
 }  // namespace
+
+Dataset Dataset::Parse(const std::string& text, const std::string& format) {
+  std::string extension = format;
+  std::transform(extension.begin(), extension.end(), extension.begin(),
+                 [](unsigned char c) {
+                   return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c;
+                 });
+  if (!IsSupportedFormat(extension))
+    throw std::runtime_error("Unsupported format: " + format);
+  return ParseContent(text, extension, "text");
+}
 
 void Dataset::Load(const std::string& path) {
   const std::string format = Format(path);
@@ -721,28 +1066,7 @@ void Dataset::Load(const std::string& path) {
   }
   if (input.bad() || !input.eof())
     throw std::runtime_error("Cannot read file: " + path);
-  Dataset result;
-  try {
-    if (format == "csv") {
-      result = LoadCsv(content);
-    } else if (format == "json") {
-      Json parsed;
-      JsonReader reader(parsed);
-      if (!Json::sax_parse(content, &reader))
-        throw std::runtime_error("Invalid JSON in " + path);
-      result = FromJson(parsed);
-    } else if (format == "yaml" || format == "yml") {
-      result = YamlReader(content).Read();
-    } else {
-      std::istringstream stream(content);
-      result = FromToml(toml::parse(stream, path));
-    }
-  } catch (const Json::exception& error) {
-    throw std::runtime_error("Invalid JSON in " + path + ": " + error.what());
-  } catch (const toml::exception& error) {
-    throw std::runtime_error("Invalid TOML in " + path + ": " + error.what());
-  }
-  *this = std::move(result);
+  *this = ParseContent(content, format, path);
 }
 
 std::list<std::pair<std::string, Dataset>> Dataset::LoadDirectory(
@@ -768,6 +1092,8 @@ std::list<std::pair<std::string, Dataset>> Dataset::LoadDirectory(
 
 void Dataset::Save(const std::string& path) const {
   const std::string format = Format(path);
+  if (ExceedsDepth(*this, kMaxDepth))
+    throw std::runtime_error("Dataset nesting is too deep to save: " + path);
   std::string content;
   try {
     if (format == "csv") {

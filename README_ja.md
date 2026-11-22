@@ -63,6 +63,12 @@ UTF-8 を使用し、タブ・改行以外の制御文字や Unicode の行区�
 - TOML: ルートはテーブルである必要があります。null の保存、日時型の
   読み込み、非有限の浮動小数点数はエラーです。
 
+`Dataset::kMaxNestingDepth`（256）より深くネストしたマップと配列は
+`Dataset` のツリーとしては読み込まれず、コンパクトな JSON テキストを保持する
+文字列になります。`Dataset::Parse(text)` で `Dataset` に変換できます。
+これらの値の内部で YAML のアンカーは定義できず、上限の 2 倍を超える TOML は
+拒否され、`Save` は上限を超える値を拒否します。
+
 `make` で `build/libcppdatasetutil.so` を生成し、`make test` で
 GoogleTest を実行します。`make doc` で Doxygen の HTML を生成します。
 生成されるドキュメントの Test List には各 GoogleTest ケースの説明も
