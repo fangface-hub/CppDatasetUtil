@@ -160,6 +160,50 @@ class CPPDATASETUTIL_API Dataset {
   const Dataset& operator[](std::size_t index) const;
 
   /**
+   * @brief Count the entries of a map or array.
+   * @return Number of entries, or 0 if this value is neither.
+   */
+  std::size_t size() const noexcept;
+  /**
+   * @brief Check whether a map contains a key.
+   * @param key Entry name.
+   * @return True if this value is a map with @p key; false otherwise.
+   */
+  bool contains(const std::string& key) const noexcept;
+  /**
+   * @brief Append an element to an array.
+   * @param value Element to add, including its comments.
+   *
+   * If this value is null, it is first converted to an empty array. Comments
+   * associated with this value are retained. Growing the array invalidates
+   * references to its elements.
+   * @throws std::logic_error if this value is neither null nor an array.
+   */
+  void push_back(Dataset value);
+  /**
+   * @brief Remove a map entry.
+   * @param key Entry name.
+   * @return True if the entry existed and was removed.
+   * @throws std::logic_error if this value is not a map.
+   */
+  bool erase(const std::string& key);
+  /**
+   * @brief Remove an array element, shifting later elements down.
+   * @param index Zero-based element index.
+   * @throws std::logic_error if this value is not an array.
+   * @throws std::out_of_range if @p index is outside the array.
+   */
+  void erase(std::size_t index);
+  /**
+   * @brief Compare values and comments, recursively.
+   *
+   * Doubles follow IEEE comparison, so a NaN is never equal to itself.
+   */
+  bool operator==(const Dataset& other) const;
+  /// Negation of operator==.
+  bool operator!=(const Dataset& other) const;
+
+  /**
    * @brief Inspect the underlying variant.
    * @return Const reference to the value; use std::get or std::get_if to
    *     inspect the selected type.
@@ -168,6 +212,12 @@ class CPPDATASETUTIL_API Dataset {
    * returns null instead. Replacing the Dataset changes the referenced value.
    */
   const Value& value() const noexcept;
+  /**
+   * @brief Modify the underlying variant.
+   * @return Mutable reference to the value; assigning a new alternative
+   *     replaces the value but keeps the comments.
+   */
+  Value& value() noexcept;
 
   /**
    * @brief Inspect comments associated with this value.

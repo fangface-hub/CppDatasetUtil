@@ -168,6 +168,50 @@ TEST(DatasetTest, RejectsInvalidAccess) {
 }
 
 /**
+ * @brief Verify in-place container editing and comparison.
+ * @test Append, erase, query, replace values, and compare nested datasets;
+ *     reject operations on the wrong value type.
+ */
+TEST(DatasetTest, EditsContainersInPlace) {
+  Dataset list;
+  list.push_back(1);
+  list.push_back("two");
+  list.push_back(Dataset::Map{{"k", 3}});
+  EXPECT_EQ(list.size(), 3u);
+  list.erase(std::size_t{0});
+  EXPECT_EQ(list.size(), 2u);
+  EXPECT_EQ(std::get<std::string>(list[0].value()), "two");
+  EXPECT_THROW(list.erase(std::size_t{2}), std::out_of_range);
+  EXPECT_THROW(list.erase("k"), std::logic_error);
+
+  Dataset map;
+  map["a"] = 1;
+  map["b"]["c"] = 2;
+  EXPECT_TRUE(map.contains("a"));
+  EXPECT_FALSE(map.contains("missing"));
+  EXPECT_TRUE(map.erase("a"));
+  EXPECT_FALSE(map.erase("a"));
+  EXPECT_EQ(map.size(), 1u);
+  EXPECT_THROW(map.push_back(1), std::logic_error);
+  EXPECT_FALSE(Dataset(5).contains("a"));
+  EXPECT_EQ(Dataset("text").size(), 0u);
+
+  Dataset value = 1;
+  value.set_comments({"note"});
+  value.value() = std::string("changed");
+  EXPECT_EQ(value.comments().at(0), "note");
+  EXPECT_EQ(std::get<std::string>(value.value()), "changed");
+
+  Dataset copy = map;
+  EXPECT_EQ(copy, map);
+  copy["b"]["c"] = 3;
+  EXPECT_NE(copy, map);
+  copy = map;
+  copy.set_comments({"x"});
+  EXPECT_NE(copy, map);
+}
+
+/**
  * @brief Verify construction from every integer type.
  * @test Store `long long`, unsigned, and narrow integers as int64 and reject
  *     unsigned values beyond the int64 range.
