@@ -9,6 +9,10 @@
 
 #include <utility>
 
+#if defined(_MSC_VER)
+extern "C" CPPDATASETUTIL_API const int CPPDATASETUTIL_ABI_SYMBOL = 1;
+#endif
+
 Dataset::Dataset(std::nullptr_t) : value_(nullptr) {}
 Dataset::Dataset(bool value) : value_(value) {}
 Dataset::Dataset(int value) : value_(static_cast<std::int64_t>(value)) {}

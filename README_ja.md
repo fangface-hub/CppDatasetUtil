@@ -98,6 +98,10 @@ cmake --build build-windows --config Release --target windows_help
 ランタイム設定で `cppdatasetutil.lib` にリンクしてください。実行時は DLL を
 実行ファイルと同じディレクトリなど Windows の DLL 検索パスに配置します。
 `CPPDATASETUTIL_BUILD` はライブラリのビルド専用で、利用側では定義しません。
+`Dataset` は標準ライブラリの型をメンバーに持つため、DLL と利用側で CRT の種類
+（`/MD` か `/MT`、Debug か Release）と `_ITERATOR_DEBUG_LEVEL` を一致させる必要が
+あります。不一致の場合は実行時にクラッシュせず、未解決の `CppDatasetUtilAbi1_*`
+シンボルとしてリンク時にエラーになります。
 テストは DLL をリンクした別の実行ファイルで実行します。Release DLL の
 実行先には互換性のある Microsoft Visual C++ 再頒布可能パッケージも必要です。
 

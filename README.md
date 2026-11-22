@@ -100,7 +100,10 @@ The DLL and import library are `build-windows\Release\cppdatasetutil.dll` and
 using the same architecture and a compatible MSVC toolset and runtime
 configuration. Put the DLL next to the executable or on the Windows DLL
 search path at runtime. `CPPDATASETUTIL_BUILD` is for building the library
-only; consumers must not define it. The test runs a separate DLL-linked
+only; consumers must not define it. `Dataset` exposes standard library members, so the
+DLL and its consumers must use the same CRT flavor (`/MD` or `/MT`, Debug or
+Release) and `_ITERATOR_DEBUG_LEVEL`; a mismatch fails at link time with an
+unresolved `CppDatasetUtilAbi1_*` symbol instead of crashing at run time. The test runs a separate DLL-linked
 consumer executable. The Release DLL also requires the compatible Microsoft
 Visual C++ Redistributable on the target machine.
 

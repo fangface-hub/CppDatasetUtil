@@ -28,6 +28,47 @@
 #define CPPDATASETUTIL_API
 #endif
 
+#if defined(_MSC_VER)
+/*
+ * Dataset exposes standard library members, so the DLL and its consumers must
+ * agree on the CRT flavor and iterator debug level. The DLL exports one marker
+ * symbol per combination and every consumer references the marker matching its
+ * own settings, turning a mismatch into a link error instead of a crash.
+ */
+#if defined(_DLL)
+#define CPPDATASETUTIL_ABI_CRT_ Dll
+#else
+#define CPPDATASETUTIL_ABI_CRT_ Static
+#endif
+#if defined(_DEBUG)
+#define CPPDATASETUTIL_ABI_CONFIG_ Debug
+#else
+#define CPPDATASETUTIL_ABI_CONFIG_ Release
+#endif
+#if _ITERATOR_DEBUG_LEVEL == 0
+#define CPPDATASETUTIL_ABI_IDL_ Idl0
+#elif _ITERATOR_DEBUG_LEVEL == 1
+#define CPPDATASETUTIL_ABI_IDL_ Idl1
+#else
+#define CPPDATASETUTIL_ABI_IDL_ Idl2
+#endif
+#define CPPDATASETUTIL_ABI_JOIN2_(a, b, c, d) a##_##b##_##c##_##d
+#define CPPDATASETUTIL_ABI_JOIN_(a, b, c, d) \
+  CPPDATASETUTIL_ABI_JOIN2_(a, b, c, d)
+#define CPPDATASETUTIL_ABI_SYMBOL                                       \
+  CPPDATASETUTIL_ABI_JOIN_(CppDatasetUtilAbi1, CPPDATASETUTIL_ABI_CRT_, \
+                           CPPDATASETUTIL_ABI_CONFIG_,                  \
+                           CPPDATASETUTIL_ABI_IDL_)
+extern "C" CPPDATASETUTIL_API const int CPPDATASETUTIL_ABI_SYMBOL;
+#if !defined(CPPDATASETUTIL_BUILD)
+namespace cppdatasetutil_detail {
+inline const int kAbiMarker = CPPDATASETUTIL_ABI_SYMBOL;
+}  // namespace cppdatasetutil_detail
+#endif
+#pragma warning(push)
+#pragma warning(disable : 4251)
+#endif
+
 /**
  * @brief A recursively nested data value with optional comments.
  *
@@ -322,5 +363,9 @@ class CPPDATASETUTIL_API Dataset {
   Value value_ = nullptr;
   std::vector<std::string> comments_;
 };
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 #endif  // CPPDATASETUTIL_INCLUDE_DATASET_H_
