@@ -329,6 +329,24 @@ bool HasComments(const Dataset& dataset) {
   return false;
 }
 
+/// libyaml rejects implicit (single-line) keys longer than 1024 characters;
+/// longer encoded keys are written with the explicit "? key" syntax.
+constexpr std::size_t kMaxSimpleKeyLength = 512;
+
+bool HasLongKey(const Dataset& dataset) {
+  if (const auto* array = std::get_if<Dataset::Array>(&dataset.value())) {
+    for (const auto& item : *array)
+      if (HasLongKey(item)) return true;
+  }
+  if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+    for (const auto& item : *map) {
+      if (Json(item.first).dump().size() > kMaxSimpleKeyLength) return true;
+      if (HasLongKey(item.second)) return true;
+    }
+  }
+  return false;
+}
+
 void AppendYamlComments(const Dataset& dataset, std::size_t indent,
                         std::string& output) {
   for (const auto& line : CommentLines(dataset))
@@ -351,7 +369,13 @@ void AppendYamlValue(const Dataset& dataset, std::size_t indent,
     output += "{\n";
     for (auto it = map->begin(); it != map->end(); ++it) {
       AppendYamlComments(it->second, indent + 2, output);
-      output += std::string(indent + 2, ' ') + Json(it->first).dump() + ": ";
+      const std::string key = Json(it->first).dump();
+      if (key.size() > kMaxSimpleKeyLength) {
+        output += std::string(indent + 2, ' ') + "? " + key + "\n" +
+                  std::string(indent + 2, ' ') + ": ";
+      } else {
+        output += std::string(indent + 2, ' ') + key + ": ";
+      }
       AppendYamlValue(it->second, indent + 2, output);
       if (std::next(it) != map->end()) output += ',';
       output += '\n';
@@ -378,7 +402,8 @@ void AppendYamlValue(const Dataset& dataset, std::size_t indent,
 }
 
 std::string SaveYaml(const Dataset& dataset) {
-  if (!HasComments(dataset)) return ToJson(dataset).dump(2) + "\n";
+  if (!HasComments(dataset) && !HasLongKey(dataset))
+    return ToJson(dataset).dump(2) + "\n";
   std::string output;
   AppendYamlComments(dataset, 0, output);
   AppendYamlValue(dataset, 0, output);

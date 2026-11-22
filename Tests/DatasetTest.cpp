@@ -405,6 +405,27 @@ TEST_F(FormatTest, ResolvesLongYamlScalars) {
 }
 
 /**
+ * @brief Verify very long map keys survive a YAML round trip.
+ * @test Save keys beyond libyaml's simple-key limit, with and without comments,
+ *     and load them back unchanged.
+ */
+TEST_F(FormatTest, RoundTripsLongYamlKeys) {
+  const std::string long_key(5000, 'k');
+  for (bool comment : {false, true}) {
+    Dataset data;
+    data[long_key]["inner"] = 1;
+    data["short"] = "v";
+    if (comment) data["short"].set_comments({"note"});
+    const auto path = Path(comment ? "longkey_c.yaml" : "longkey.yaml");
+    data.Save(path);
+    Dataset loaded;
+    loaded.Load(path);
+    EXPECT_EQ(std::get<std::int64_t>(loaded[long_key]["inner"].value()), 1);
+    EXPECT_EQ(std::get<std::string>(loaded["short"].value()), "v");
+  }
+}
+
+/**
  * @brief Verify YAML alias expansion is bounded.
  * @test Reject an alias bomb with std::runtime_error while accepting ordinary
  *     alias reuse.
