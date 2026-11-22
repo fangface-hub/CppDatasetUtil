@@ -147,8 +147,9 @@ Salva in base all'estensione. CSV richiede un array di mappe non vuote con le
 stesse chiavi e valori stringa; un array vuoto produce un file vuoto. La radice
 TOML deve essere una mappa e null non è supportato. Non è possibile salvare
 numeri in virgola mobile non finiti. YAML e TOML salvano i commenti
-rappresentabili. La serializzazione precede l'apertura, ma un errore di
-scrittura può lasciare un file troncato o incompleto. Errori di I/O,
+rappresentabili. Il contenuto viene scritto in un file temporaneo e rinominato sul
+destinazione, quindi un errore di scrittura lascia invariato il file
+esistente. I collegamenti simbolici vengono seguiti e i permessi mantenuti. Errori di I/O,
 estensioni non supportate e valori o commenti non rappresentabili causano
 std::runtime_error.
 </p>

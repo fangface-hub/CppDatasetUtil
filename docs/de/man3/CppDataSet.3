@@ -120,9 +120,9 @@ Speichert anhand der Erweiterung. CSV verlangt ein Array nicht leerer Maps mit
 gleichen Schlüsseln und Zeichenkettenwerten; ein leeres Array ergibt eine leere
 Datei. TOML verlangt eine Map als Wurzel und unterstützt kein null.
 Nicht endliche Gleitkommazahlen können nicht gespeichert werden. YAML und TOML
-speichern darstellbare Kommentare. Serialisiert wird vor dem Öffnen; ein
-E/A-Fehler beim Schreiben kann eine abgeschnittene oder unvollständige Datei
-hinterlassen. E/A-Fehler und nicht darstellbare Werte oder Kommentare führen
+speichern darstellbare Kommentare. Der Inhalt wird in eine temporäre Datei geschrieben und über das Ziel
+umbenannt; ein Schreibfehler lässt eine vorhandene Datei unverändert.
+Symbolische Links werden aufgelöst, Berechtigungen bleiben erhalten. E/A-Fehler und nicht darstellbare Werte oder Kommentare führen
 wie nicht unterstützte Erweiterungen zu std::runtime_error.
 .PP
 CSV verwendet die erste Zeile als Spaltennamen und speichert jede weitere

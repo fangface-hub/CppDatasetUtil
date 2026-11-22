@@ -20,6 +20,7 @@
 #include <iterator>
 #include <limits>
 #include <locale>
+#include <random>
 #include <set>
 #include <sstream>
 #include <utility>
@@ -1162,6 +1163,49 @@ Dataset ParseContent(const std::string& content, const std::string& format,
   }
 }
 
+/**
+ * @brief Replace a file's content without exposing a partial write.
+ *
+ * The content goes to a temporary file in the same directory, which is then
+ * renamed over the target, so a failed save leaves the old file intact.
+ * Symbolic links are followed and the existing permissions are kept.
+ */
+void WriteFileAtomically(const std::string& path, const std::string& content) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  fs::path target(path);
+  if (fs::is_symlink(target, ec)) {
+    const fs::path resolved = fs::canonical(target, ec);
+    if (!ec) target = resolved;
+  }
+  std::random_device random;
+  fs::path temporary;
+  std::ofstream output;
+  for (int attempt = 0; attempt < 16 && !output.is_open(); ++attempt) {
+    temporary = target;
+    temporary += ".tmp" + std::to_string(random());
+    if (fs::exists(temporary, ec)) continue;
+    output.open(temporary, std::ios::binary | std::ios::trunc);
+  }
+  if (!output.is_open())
+    throw std::runtime_error("Cannot open file for writing: " + path);
+  output.write(content.data(), static_cast<std::streamsize>(content.size()));
+  output.close();
+  if (!output) {
+    fs::remove(temporary, ec);
+    throw std::runtime_error("Cannot write file: " + path);
+  }
+  const auto status = fs::status(target, ec);
+  if (!ec && fs::is_regular_file(status))
+    fs::permissions(temporary, status.permissions(), ec);
+  fs::rename(temporary, target, ec);
+  if (ec) {
+    const std::string message = ec.message();
+    fs::remove(temporary, ec);
+    throw std::runtime_error("Cannot write file: " + path + ": " + message);
+  }
+}
+
 }  // namespace
 
 Dataset Dataset::Parse(const std::string& text, const std::string& format) {
@@ -1232,10 +1276,5 @@ void Dataset::Save(const std::string& path) const {
   } catch (const toml::exception& error) {
     throw std::runtime_error("Cannot serialize " + path + ": " + error.what());
   }
-  std::ofstream output(path, std::ios::binary | std::ios::trunc);
-  if (!output)
-    throw std::runtime_error("Cannot open file for writing: " + path);
-  output.write(content.data(), static_cast<std::streamsize>(content.size()));
-  output.close();
-  if (!output) throw std::runtime_error("Cannot write file: " + path);
+  WriteFileAtomically(path, content);
 }

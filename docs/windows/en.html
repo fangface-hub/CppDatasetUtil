@@ -139,8 +139,9 @@ Saves according to the extension. CSV requires an array of nonempty maps
 with identical keys and string values; an empty array produces an empty file.
 The TOML root must be a map and null is unsupported. Non-finite floating-point
 numbers cannot be saved. YAML and TOML save representable comments.
-Serialization precedes opening the file, but a write error can leave it
-truncated or incomplete. I/O errors, unsupported extensions, and values or
+The content is written to a temporary file and renamed over the target, so a
+write error leaves an existing file unchanged. Symbolic links are followed and
+permissions are kept. I/O errors, unsupported extensions, and values or
 comments that cannot be represented throw std::runtime_error.
 </p>
 <p>

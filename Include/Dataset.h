@@ -306,9 +306,11 @@ class CPPDATASETUTIL_API Dataset {
    * an empty array produces an empty file. TOML requires a root map and does
    * not support null. Non-finite doubles cannot be saved. YAML and TOML save
    * comments where supported; CSV and JSON do not. Values nested deeper than
-   * kMaxNestingDepth cannot be saved. Serialization is performed
-   * before opening the file, but an I/O failure during writing may leave it
-   * truncated or incomplete.
+   * kMaxNestingDepth cannot be saved. The content is written to a
+   * temporary file in the same directory and renamed over the target, so an
+   * I/O failure leaves any existing file unchanged. Symbolic links are
+   * followed and existing permissions are kept; the directory must be
+   * writable.
    *
    * @throws std::runtime_error on I/O errors, an unsupported extension, or
    *     values or comments that the format cannot represent.

@@ -452,6 +452,39 @@ TEST_F(FormatTest, LoadsCsvWithBomAndBlankLines) {
 }
 
 /**
+ * @brief Verify Save replaces files without leaving temporary files.
+ * @test Overwrite an existing file, keep its permissions, and write through a
+ *     symbolic link.
+ */
+TEST_F(FormatTest, SavesAtomically) {
+  namespace fs = std::filesystem;
+  const auto path = Path("atomic.json");
+  Write(path, "old");
+  fs::permissions(path, fs::perms::owner_read | fs::perms::owner_write);
+  Dataset data;
+  data["k"] = 1;
+  data.Save(path);
+  Dataset loaded;
+  loaded.Load(path);
+  EXPECT_EQ(std::get<std::int64_t>(loaded["k"].value()), 1);
+  EXPECT_EQ(fs::status(path).permissions(),
+            fs::perms::owner_read | fs::perms::owner_write);
+
+  const auto link = Path("atomic_link.json");
+  std::error_code ec;
+  fs::create_symlink(fs::path(path).filename(), link, ec);
+  if (!ec) {
+    data["k"] = 2;
+    data.Save(link);
+    EXPECT_TRUE(fs::is_symlink(link));
+    loaded.Load(path);
+    EXPECT_EQ(std::get<std::int64_t>(loaded["k"].value()), 2);
+  }
+  for (const auto& entry : fs::directory_iterator(fs::path(path).parent_path()))
+    EXPECT_EQ(entry.path().string().find(".tmp"), std::string::npos);
+}
+
+/**
  * @brief Verify YAML alias expansion is bounded.
  * @test Reject an alias bomb with std::runtime_error while accepting ordinary
  *     alias reuse.

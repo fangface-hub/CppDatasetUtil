@@ -148,9 +148,9 @@ Enregistre selon l'extension. CSV exige un tableau de tables non vides ayant
 les mêmes clés et des valeurs chaîne ; un tableau vide produit un fichier
 vide. La racine TOML doit être une table et null n'est pas pris en charge.
 Les nombres flottants non finis ne peuvent pas être enregistrés. YAML et TOML
-enregistrent les commentaires représentables. La sérialisation précède
-l'ouverture, mais une erreur d'écriture peut laisser un fichier tronqué ou
-incomplet. Les erreurs d'E/S, extensions non prises en charge et valeurs ou
+enregistrent les commentaires représentables. Le contenu est écrit dans un fichier temporaire puis renommé sur la cible ;
+une erreur d'écriture laisse donc intact tout fichier existant. Les liens
+symboliques sont suivis et les permissions conservées. Les erreurs d'E/S, extensions non prises en charge et valeurs ou
 commentaires non représentables provoquent std::runtime_error.
 </p>
 <p>
