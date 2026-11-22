@@ -485,6 +485,26 @@ TEST_F(FormatTest, SavesAtomically) {
 }
 
 /**
+ * @brief Verify paths are treated as UTF-8 strings.
+ * @test Save, load and list a file whose name is non-ASCII.
+ */
+TEST_F(FormatTest, HandlesNonAsciiPaths) {
+  const auto path = Path("\xE3\x83\x87\xE3\x83\xBC\xE3\x82\xBF.json");
+  Dataset data;
+  data["k"] = "v";
+  data.Save(path);
+  Dataset loaded;
+  loaded.Load(path);
+  EXPECT_EQ(std::get<std::string>(loaded["k"].value()), "v");
+  const auto listed = Dataset::LoadDirectory(
+      std::filesystem::path(path).parent_path().string());
+  ASSERT_FALSE(listed.empty());
+  EXPECT_NE(std::find_if(listed.begin(), listed.end(),
+                         [&](const auto& item) { return item.first == path; }),
+            listed.end());
+}
+
+/**
  * @brief Verify YAML alias expansion is bounded.
  * @test Reject an alias bomb with std::runtime_error while accepting ordinary
  *     alias reuse.

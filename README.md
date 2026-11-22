@@ -41,7 +41,9 @@ specified directory and symlink names.
 case-insensitive file extension. They throw `std::runtime_error` on errors;
 a failed load leaves the original Dataset unchanged. Comments are saved to
 YAML and TOML, but are not loaded, so a successful load removes existing
-comments. CSV and JSON do not save comments.
+comments. CSV and JSON do not save comments. File paths are `std::string`s
+encoded as UTF-8 on every platform, including Windows, and names returned by
+`LoadDirectory` are UTF-8 as well.
 
 Set comments without a leading `#`; they are written before the value with a
 `# ` prefix. Strings containing line breaks are split into multiple comment

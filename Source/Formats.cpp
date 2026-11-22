@@ -187,9 +187,20 @@ std::string Format(const std::string& path) {
   return extension;
 }
 
+/// Interpret a std::string path as UTF-8 on every platform. Without this,
+/// Windows would use the ANSI code page and fail on non-ASCII names.
+std::filesystem::path PathFromUtf8(const std::string& path) {
+  return std::filesystem::u8path(path);
+}
+
+std::string PathToUtf8(const std::filesystem::path& path) {
+  return path.u8string();
+}
+
 void DirectoryWarning(const std::filesystem::path& path,
                       const std::string& reason) {
-  std::cerr << "Dataset: skipping " << path.string() << ": " << reason << '\n';
+  std::cerr << "Dataset: skipping " << PathToUtf8(path) << ": " << reason
+            << '\n';
 }
 
 /**
@@ -214,8 +225,8 @@ void CollectFiles(const std::filesystem::path& directory, bool recursive,
   const auto canonical = fs::canonical(directory, error);
   if (error) {
     if (root)
-      throw std::runtime_error("Cannot open directory " + directory.string() +
-                               ": " + error.message());
+      throw std::runtime_error("Cannot open directory " +
+                               PathToUtf8(directory) + ": " + error.message());
     DirectoryWarning(directory, error.message());
     return;
   }
@@ -226,8 +237,8 @@ void CollectFiles(const std::filesystem::path& directory, bool recursive,
   fs::directory_iterator iterator(directory, error);
   if (error) {
     if (root)
-      throw std::runtime_error("Cannot open directory " + directory.string() +
-                               ": " + error.message());
+      throw std::runtime_error("Cannot open directory " +
+                               PathToUtf8(directory) + ": " + error.message());
     DirectoryWarning(directory, error.message());
     ancestors.erase(canonical);
     return;
@@ -242,7 +253,7 @@ void CollectFiles(const std::filesystem::path& directory, bool recursive,
     } else if (fs::is_directory(status)) {
       if (recursive) CollectFiles(entry.path(), true, false, ancestors, files);
     } else if (fs::is_regular_file(status) &&
-               IsSupportedFormat(FileExtension(entry.path().string()))) {
+               IsSupportedFormat(FileExtension(PathToUtf8(entry.path())))) {
       files.push_back(entry.path());
     }
     iterator.increment(error);
@@ -1173,7 +1184,7 @@ Dataset ParseContent(const std::string& content, const std::string& format,
 void WriteFileAtomically(const std::string& path, const std::string& content) {
   namespace fs = std::filesystem;
   std::error_code ec;
-  fs::path target(path);
+  fs::path target = PathFromUtf8(path);
   if (fs::is_symlink(target, ec)) {
     const fs::path resolved = fs::canonical(target, ec);
     if (!ec) target = resolved;
@@ -1221,7 +1232,7 @@ Dataset Dataset::Parse(const std::string& text, const std::string& format) {
 
 void Dataset::Load(const std::string& path) {
   const std::string format = Format(path);
-  std::ifstream input(path, std::ios::binary);
+  std::ifstream input(PathFromUtf8(path), std::ios::binary);
   if (!input) throw std::runtime_error("Cannot open file for reading: " + path);
   std::string content;
   char buffer[8192];
@@ -1237,11 +1248,11 @@ std::list<std::pair<std::string, Dataset>> Dataset::LoadDirectory(
     const std::string& path, bool recursive) {
   std::set<std::filesystem::path> ancestors;
   std::vector<std::filesystem::path> files;
-  CollectFiles(path, recursive, true, ancestors, files);
+  CollectFiles(PathFromUtf8(path), recursive, true, ancestors, files);
   std::sort(files.begin(), files.end());
   std::list<std::pair<std::string, Dataset>> result;
   for (const auto& file : files) {
-    const std::string name = file.string();
+    const std::string name = PathToUtf8(file);
     Dataset dataset;
     try {
       dataset.Load(name);

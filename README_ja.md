@@ -41,7 +41,8 @@ for (const auto& [path, dataset] : Dataset::LoadDirectory("configs", true)) {
 YAML (`.yaml`, `.yml`)、TOML を選択します。エラー時は
 `std::runtime_error` を送出し、読み込みに失敗した場合は元の Dataset を
 変更しません。コメントは YAML / TOML に保存されます。読み込みには対応して
-いないため、読み込み成功時には消去されます。CSV / JSON には保存されません。
+いないため、読み込み成功時には消去されます。CSV / JSON には保存されません。ファイルパスは Windows を含む全プラットフォームで
+UTF-8 の `std::string` として扱われ、`LoadDirectory` が返す名前も UTF-8 です。
 
 コメントは行頭に `#` を付けずに設定し、値の前に `# ` を付けて出力
 します。改行を含む文字列は複数のコメント行に分割します。コメントには有効な
