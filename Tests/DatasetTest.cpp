@@ -426,6 +426,32 @@ TEST_F(FormatTest, RoundTripsLongYamlKeys) {
 }
 
 /**
+ * @brief Verify CSV loading tolerates a BOM and blank lines.
+ * @test Load a BOM-prefixed file with blank lines and a CRLF trailing blank
+ *     line, and round-trip an empty single-column value.
+ */
+TEST_F(FormatTest, LoadsCsvWithBomAndBlankLines) {
+  const auto path = Path("bom.csv");
+  Write(path,
+        "\xEF\xBB\xBF"
+        "a,b\r\n1,2\r\n\r\n3,4\n\n");
+  Dataset data;
+  data.Load(path);
+  ASSERT_EQ(data.size(), 2u);
+  EXPECT_EQ(std::get<std::string>(data[0]["a"].value()), "1");
+  EXPECT_EQ(std::get<std::string>(data[1]["b"].value()), "4");
+
+  Dataset single =
+      Dataset::Array{Dataset::Map{{"x", ""}}, Dataset::Map{{"x", "y"}}};
+  const auto single_path = Path("single.csv");
+  single.Save(single_path);
+  Dataset loaded;
+  loaded.Load(single_path);
+  ASSERT_EQ(loaded.size(), 2u);
+  EXPECT_EQ(std::get<std::string>(loaded[0]["x"].value()), "");
+}
+
+/**
  * @brief Verify YAML alias expansion is bounded.
  * @test Reject an alias bomb with std::runtime_error while accepting ordinary
  *     alias reuse.

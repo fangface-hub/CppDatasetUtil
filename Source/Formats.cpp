@@ -598,6 +598,16 @@ std::vector<std::vector<std::string>> ParseCsv(const std::string& input) {
       }
       continue;
     }
+    if ((c == '\r' || c == '\n') && row.empty() && field.empty() && !started &&
+        !closed) {
+      // A blank line carries no record.
+      if (c == '\r') {
+        if (i + 1 >= input.size() || input[i + 1] != '\n')
+          throw std::runtime_error("CSV contains a bare carriage return");
+        ++i;
+      }
+      continue;
+    }
     if (c == ',' || c == '\r' || c == '\n') {
       row.push_back(std::move(field));
       field.clear();
@@ -630,7 +640,8 @@ std::vector<std::vector<std::string>> ParseCsv(const std::string& input) {
 }
 
 Dataset LoadCsv(const std::string& input) {
-  auto rows = ParseCsv(input);
+  const bool bom = input.compare(0, 3, "\xEF\xBB\xBF") == 0;
+  auto rows = ParseCsv(bom ? input.substr(3) : input);
   Dataset::Array records;
   if (rows.empty()) return records;
   const auto& header = rows.front();
@@ -650,7 +661,8 @@ Dataset LoadCsv(const std::string& input) {
   return records;
 }
 
-std::string CsvField(const std::string& value) {
+std::string CsvField(const std::string& value, bool quote_empty = false) {
+  if (value.empty() && quote_empty) return "\"\"";
   if (value.find_first_of(",\"\r\n") == std::string::npos) return value;
   std::string result = "\"";
   for (char c : value) {
@@ -687,7 +699,7 @@ std::string SaveCsv(const Dataset& data) {
       const auto* value = std::get_if<std::string>(&it->second.value());
       if (!value) throw std::runtime_error("CSV fields must be strings");
       if (!first) result += ',';
-      result += CsvField(*value);
+      result += CsvField(*value, header->size() == 1);
       first = false;
     }
     result += "\r\n";

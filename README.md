@@ -55,7 +55,9 @@ inside inline tables, are omitted.
   field counts are errors. To save, every row must be a nonempty map with the
   same keys and string values. Columns are ordered by key. Empty files and
   header-only files load as empty arrays, and empty arrays save as empty files
-  (header-only column names are not retained).
+  (header-only column names are not retained). A leading UTF-8 BOM and blank
+  lines are ignored when loading; an empty value in a single-column file is
+  saved as `""` so the record is preserved.
 - JSON: Supports null, booleans, signed 64-bit integers, finite floating-point
   numbers, strings, arrays, and objects.
 - YAML: Supports the same values as JSON and resolves basic YAML 1.2 scalar
