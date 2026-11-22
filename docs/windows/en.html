@@ -35,6 +35,12 @@ without comments. Constructors also accept nullptr, bool, int, std::int64_t,
 double, const char*, std::string, Map and Array. A null const char* throws
 std::invalid_argument.
 </p>
+<p>
+Any other integer type, such as long long, std::size_t or unsigned, is
+stored as a signed 64-bit integer; an unsigned value above the int64 range
+throws std::out_of_range. Pointers other than const char* are rejected at
+compile time instead of becoming bool.
+</p>
 <h2>ACCESS</h2>
 <p>
 <b>operator[](const std::string&amp; key)</b>
@@ -54,6 +60,38 @@ its elements.
 <b>value() const noexcept</b>
 Returns a const reference to Value. On a type mismatch, std::get throws
 std::bad_variant_access and std::get_if returns a null pointer.
+</p>
+<p>
+<b>size() const noexcept</b>
+Returns the number of entries of a map or array, and 0 for any other value.
+</p>
+<p>
+<b>contains(const std::string&amp; key) const noexcept</b>
+Returns true if the value is a map that contains key.
+</p>
+<p>
+<b>push_back(Dataset value)</b>
+Appends an element to an array. A null value first becomes an empty array
+and keeps its comments. Any other type throws std::logic_error.
+</p>
+<p>
+<b>erase(const std::string&amp; key)</b>
+Removes a map entry and returns whether it existed. A non-map value throws
+std::logic_error.
+</p>
+<p>
+<b>erase(std::size_t index)</b>
+Removes an array element and shifts later elements down. A non-array value
+throws std::logic_error; an out-of-range index throws std::out_of_range.
+</p>
+<p>
+<b>value() noexcept</b>
+Returns a mutable reference to Value. Assigning a new alternative replaces
+the value and keeps the comments.
+</p>
+<p>
+<b>operator==, operator!=</b>
+Compare values and comments recursively. A NaN is never equal to itself.
 </p>
 <h2>COMMENTS</h2>
 <p>
@@ -75,6 +113,14 @@ Loads CSV, JSON, YAML or TOML based on the case-insensitive extension .csv,
 .json, .yaml, .yml or .toml. Comments are not loaded. Success replaces the
 value and comments; failure leaves the Dataset unchanged. I/O errors, invalid
 input, and unsupported extensions or values throw std::runtime_error.
+</p>
+<p>
+<b>static Parse(const std::string&amp; text, const std::string&amp; format = "json")</b>
+Parses CSV, JSON, YAML or TOML text. format is a case-insensitive name: csv,
+json, yaml, yml or toml (default json). The rules, including the nesting
+limit, are those of Load, without comments. Use it to expand the string kept
+for a value nested deeper than the limit. Invalid input or an unsupported
+format throws std::runtime_error.
 </p>
 <p>
 <b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
@@ -103,6 +149,14 @@ map of strings. Duplicate names and inconsistent field counts are errors.
 YAML resolves supported core scalars and rejects multiple documents, duplicate
 anchors, recursive aliases and unsupported tags. TOML date/time values and
 non-finite numbers cannot be loaded.
+</p>
+<p>
+Maps and arrays nested deeper than Dataset::kMaxNestingDepth (256) are not
+loaded as trees. Each is kept as a string holding its compact JSON text,
+which Parse converts back. YAML anchors cannot be defined inside such
+values, TOML nested more than twice the limit is rejected, and Save rejects
+values nested beyond the limit. YAML aliases that expand to more than
+1,000,000 values in total are errors.
 </p>
 <h2>EXAMPLE</h2>
 <pre>

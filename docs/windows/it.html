@@ -36,6 +36,12 @@ senza commenti. I costruttori accettano nullptr, bool, int, std::int64_t,
 double, const char*, std::string, Map e Array. Un puntatore null per
 const char* causa std::invalid_argument.
 </p>
+<p>
+Qualsiasi altro tipo intero, come long long, std::size_t o unsigned, è
+memorizzato come intero con segno a 64 bit; un valore senza segno oltre
+l'intervallo int64 causa std::out_of_range. I puntatori diversi da const
+char* sono rifiutati in compilazione invece di diventare bool.
+</p>
 <h2>ACCESSO</h2>
 <p>
 <b>operator[](const std::string&amp; key)</b>
@@ -56,6 +62,40 @@ ai suoi elementi.
 <b>value() const noexcept</b>
 Restituisce un riferimento const a Value. Se il tipo non corrisponde,
 std::get genera std::bad_variant_access e std::get_if restituisce null.
+</p>
+<p>
+<b>size() const noexcept</b>
+Restituisce il numero di voci di una mappa o di un array, e 0 per qualsiasi
+altro valore.
+</p>
+<p>
+<b>contains(const std::string&amp; key) const noexcept</b>
+Restituisce true se il valore è una mappa che contiene key.
+</p>
+<p>
+<b>push_back(Dataset value)</b>
+Aggiunge un elemento a un array. Un valore null diventa prima un array vuoto
+e mantiene i commenti. Qualsiasi altro tipo causa std::logic_error.
+</p>
+<p>
+<b>erase(const std::string&amp; key)</b>
+Rimuove una voce della mappa e indica se esisteva. Un tipo diverso da mappa
+causa std::logic_error.
+</p>
+<p>
+<b>erase(std::size_t index)</b>
+Rimuove un elemento dell'array e sposta quelli successivi. Un tipo diverso
+causa std::logic_error, un indice fuori intervallo std::out_of_range.
+</p>
+<p>
+<b>value() noexcept</b>
+Restituisce un riferimento modificabile a Value. Assegnare un'altra
+alternativa sostituisce il valore e mantiene i commenti.
+</p>
+<p>
+<b>operator==, operator!=</b>
+Confrontano ricorsivamente valori e commenti. Un NaN non è mai uguale a se
+stesso.
 </p>
 <h2>COMMENTI</h2>
 <p>
@@ -79,6 +119,15 @@ Carica CSV, JSON, YAML o TOML in base all'estensione .csv, .json, .yaml,
 vengono caricati. In caso di successo sostituisce valore e commenti; in caso
 di errore il Dataset rimane invariato. Errori di I/O, input non valido ed
 estensioni o valori non supportati causano std::runtime_error.
+</p>
+<p>
+<b>static Parse(const std::string&amp; text, const std::string&amp; format = "json")</b>
+Analizza testo CSV, JSON, YAML o TOML. format è un nome senza distinzione
+tra maiuscole e minuscole: csv, json, yaml, yml o toml (predefinito json).
+Valgono le regole di Load, compreso il limite di annidamento, senza
+commenti. Serve a espandere la stringa conservata per un valore annidato
+oltre il limite. Input non valido o formato non supportato causa
+std::runtime_error.
 </p>
 <p>
 <b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
@@ -109,6 +158,14 @@ diventa una mappa di stringhe. Nomi duplicati e numeri di colonne diversi
 sono errori. YAML risolve gli scalari di base supportati e rifiuta documenti
 multipli, ancore duplicate, alias ricorsivi e tag non supportati. Date, ore e
 numeri non finiti TOML non vengono caricati.
+</p>
+<p>
+Le mappe e gli array annidati oltre Dataset::kMaxNestingDepth (256) non sono
+caricati come alberi. Ciascuno è conservato come stringa con il relativo
+testo JSON compatto, che Parse riconverte. Le ancore YAML non possono essere
+definite in questi valori, un TOML annidato oltre il doppio del limite è
+rifiutato e Save rifiuta i valori oltre il limite. Gli alias YAML che si
+espandono in più di 1.000.000 di valori in totale sono errori.
 </p>
 <h2>ESEMPIO</h2>
 <pre>
