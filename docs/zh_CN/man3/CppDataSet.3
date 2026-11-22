@@ -7,7 +7,7 @@
 CppDataSet \- 带可选注释的递归 Dataset 值
 .SH 用法
 .nf
-.B #include <Dataset.h>
+.B #include <cppdatasetutil.h>
 .B class Dataset;
 .fi
 .SH 描述
@@ -133,7 +133,7 @@ Parse 转换。这些值内部不能定义 YAML 锚点，嵌套超过限制两�
 1,000,000 个值的 YAML 别名属于错误。
 .SH 示例
 .nf
-#include <Dataset.h>
+#include <cppdatasetutil.h>
 #include <string>
 #include <variant>
 Dataset data;
@@ -190,7 +190,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

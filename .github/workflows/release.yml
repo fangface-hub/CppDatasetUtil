@@ -153,7 +153,7 @@ jobs:
           $sdk = Join-Path $env:RUNNER_TEMP 'cppdatasetutil-sdk'
           New-Item -ItemType Directory -Path windows-release, $sdk, "$sdk\licenses" | Out-Null
           Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\help\CppDatasetUtil.chm windows-release
-          Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\Release\cppdatasetutil.lib, Include\Dataset.h, build-windows\help\CppDatasetUtil.chm $sdk
+          Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\Release\cppdatasetutil.lib, Include\cppdatasetutil.h, build-windows\help\CppDatasetUtil.chm $sdk
           Copy-Item LICENSE "$sdk\licenses\cppdatasetutil-LICENSE"
           Copy-Item third_party\json\LICENSE.MIT "$sdk\licenses\json-LICENSE"
           Copy-Item third_party\libyaml\License "$sdk\licenses\libyaml-LICENSE"

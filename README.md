@@ -6,7 +6,7 @@ The C++17 `Dataset` holds null, boolean, 64-bit integer, double, string, map,
 and array values, along with comments associated with each value.
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 Dataset data;
 data["server"]["host"] = "localhost";
@@ -96,7 +96,7 @@ cmake --build build-windows --config Release --target windows_help
 ```
 
 The DLL and import library are `build-windows\Release\cppdatasetutil.dll` and
-`cppdatasetutil.lib`. Include `Include\Dataset.h` and link the import library
+`cppdatasetutil.lib`. Include `Include\cppdatasetutil.h` and link the import library
 using the same architecture and a compatible MSVC toolset and runtime
 configuration. Put the DLL next to the executable or on the Windows DLL
 search path at runtime. `CPPDATASETUTIL_BUILD` is for building the library
@@ -175,7 +175,7 @@ the expected values:
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

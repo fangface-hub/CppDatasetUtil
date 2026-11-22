@@ -9,7 +9,7 @@
 CppDataSet \- 선택적인 주석을 가진 재귀적 Dataset 값
 .SH 사용법
 .nf
-.B #include <Dataset.h>
+.B #include <cppdatasetutil.h>
 .B class Dataset;
 .fi
 .SH 설명
@@ -148,7 +148,7 @@ Dataset::kMaxNestingDepth(256)보다 깊게 중첩된 맵과 배열은 트리로
 오류입니다.
 .SH 예제
 .nf
-#include <Dataset.h>
+#include <cppdatasetutil.h>
 #include <string>
 #include <variant>
 Dataset data;
@@ -206,7 +206,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

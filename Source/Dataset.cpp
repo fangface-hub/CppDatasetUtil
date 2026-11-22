@@ -5,9 +5,9 @@
  * Serialization and filesystem operations are implemented in Formats.cpp.
  */
 
-#include "Dataset.h"
-
 #include <utility>
+
+#include "cppdatasetutil.h"
 
 #if defined(_MSC_VER)
 extern "C" CPPDATASETUTIL_API const int CPPDATASETUTIL_ABI_SYMBOL = 1;

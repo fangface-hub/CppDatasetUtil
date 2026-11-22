@@ -4,7 +4,7 @@
 CppDataSet \- valeur Dataset récursive avec commentaires facultatifs
 .SH SYNOPSIS
 .nf
-.B #include <Dataset.h>
+.B #include <cppdatasetutil.h>
 .B class Dataset;
 .fi
 .SH DESCRIPTION
@@ -150,7 +150,7 @@ alias YAML se développant en plus de 1 000 000 de valeurs au total sont des
 erreurs.
 .SH EXEMPLE
 .nf
-#include <Dataset.h>
+#include <cppdatasetutil.h>
 #include <string>
 #include <variant>
 Dataset data;
@@ -207,7 +207,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

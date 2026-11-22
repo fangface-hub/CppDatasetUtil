@@ -71,7 +71,7 @@ else
   libdir=$(rpm --eval '%{_libdir}')
 fi
 
-cmp "$source_dir/Include/Dataset.h" "$root/usr/include/Dataset.h"
+cmp "$source_dir/Include/cppdatasetutil.h" "$root/usr/include/cppdatasetutil.h"
 cmp "$source_dir/LICENSE" "$root/usr/share/licenses/cppdatasetutil/LICENSE"
 cmp "$source_dir/third_party/json/LICENSE.MIT" "$root/usr/share/licenses/cppdatasetutil/json-LICENSE"
 cmp "$source_dir/third_party/libyaml/License" "$root/usr/share/licenses/cppdatasetutil/libyaml-LICENSE"
@@ -104,7 +104,7 @@ readelf -d "$root$libdir/libcppdatasetutil.so.0" | grep -q 'SONAME.*libcppdatase
 
 cat > "$work/consumer.cpp" <<'EOF'
 #include <cstdint>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 int main(int argc, char** argv) {
   if (argc != 2) return 1;
   Dataset data;

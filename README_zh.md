@@ -6,7 +6,7 @@ C++17 `Dataset` 可保存 null、布尔值、64 位整数、double、字符串�
 数组以及与各个值关联的注释。
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 Dataset data;
 data["server"]["host"] = "localhost";
 data["server"]["port"] = 8080;
@@ -115,7 +115,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

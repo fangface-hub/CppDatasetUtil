@@ -6,7 +6,7 @@
 Zeichenketten, Maps und Arrays sowie Kommentare zu einzelnen Werten.
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 Dataset data;
 data["server"]["host"] = "localhost";
 data["server"]["port"] = 8080;
@@ -127,7 +127,7 @@ das unabhängige Modell `ServerConfig` wird auf Endpunkt und Status geprüft:
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

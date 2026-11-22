@@ -1,10 +1,10 @@
 /**
- * @file Dataset.h
+ * @file cppdatasetutil.h
  * @brief Recursive data model and file format serialization.
  */
 
-#ifndef CPPDATASETUTIL_INCLUDE_DATASET_H_
-#define CPPDATASETUTIL_INCLUDE_DATASET_H_
+#ifndef CPPDATASETUTIL_INCLUDE_CPPDATASETUTIL_H_
+#define CPPDATASETUTIL_INCLUDE_CPPDATASETUTIL_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -368,4 +368,4 @@ class CPPDATASETUTIL_API Dataset {
 #pragma warning(pop)
 #endif
 
-#endif  // CPPDATASETUTIL_INCLUDE_DATASET_H_
+#endif  // CPPDATASETUTIL_INCLUDE_CPPDATASETUTIL_H_

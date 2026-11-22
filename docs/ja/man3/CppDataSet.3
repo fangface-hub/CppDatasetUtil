@@ -8,7 +8,7 @@
 CppDataSet \- コメントを付けられる再帰的な Dataset 値
 .SH 書式
 .nf
-.B #include <Dataset.h>
+.B #include <cppdatasetutil.h>
 .PP
 .B class Dataset;
 .fi
@@ -176,7 +176,7 @@ Dataset::kMaxNestingDepth（256）より深くネストしたマップと配列�
 は拒否され、Save は上限を超える値を拒否します。合計 1,000,000 個を超える値に展開される YAML の別名はエラーです。
 .SH 使用例
 .nf
-#include <Dataset.h>
+#include <cppdatasetutil.h>
 #include <string>
 #include <variant>
 
@@ -236,7 +236,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

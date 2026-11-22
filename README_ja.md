@@ -6,7 +6,7 @@ C++17 の `Dataset` は null、真偽値、64 ビット整数、double、文字�
 マップ、配列と、値に関連付けられたコメントを保持します。
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 Dataset data;
 data["server"]["host"] = "localhost";
@@ -93,7 +93,7 @@ cmake --build build-windows --config Release --target windows_help
 ```
 
 `build-windows\Release\cppdatasetutil.dll` とインポートライブラリ
-`cppdatasetutil.lib` が生成されます。利用側は `Include\Dataset.h` を
+`cppdatasetutil.lib` が生成されます。利用側は `Include\cppdatasetutil.h` を
 インクルードし、同じアーキテクチャと互換性のある MSVC ツールセット・
 ランタイム設定で `cppdatasetutil.lib` にリンクしてください。実行時は DLL を
 実行ファイルと同じディレクトリなど Windows の DLL 検索パスに配置します。
@@ -173,7 +173,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

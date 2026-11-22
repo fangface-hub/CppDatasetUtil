@@ -6,7 +6,7 @@ En C++17, `Dataset` contient null, des booléens, des entiers 64 bits, des
 double, chaînes, tables et tableaux, ainsi que des commentaires par valeur.
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 Dataset data;
 data["server"]["host"] = "localhost";
 data["server"]["port"] = 8080;
@@ -129,7 +129,7 @@ cas ; le modèle indépendant `ServerConfig` est testé sur son adresse et son �
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:
