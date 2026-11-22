@@ -326,6 +326,21 @@ TEST_F(FormatTest, RejectsInvalidInputWithoutChangingDataset) {
 }
 
 /**
+ * @brief Verify very long YAML scalars are resolved without recursion.
+ * @test A multi-megabyte plain scalar loads as a string and long numerals are
+ *     still resolved.
+ */
+TEST_F(FormatTest, ResolvesLongYamlScalars) {
+  const auto path = Path("long.yaml");
+  Write(path, "a: " + std::string(4000000, '1') + "x\nb: 1.5e3\nc: -0x1F\n");
+  Dataset data;
+  data.Load(path);
+  EXPECT_EQ(std::get<std::string>(data["a"].value()).size(), 4000001u);
+  EXPECT_DOUBLE_EQ(std::get<double>(data["b"].value()), 1500.0);
+  EXPECT_EQ(std::get<std::int64_t>(data["c"].value()), -31);
+}
+
+/**
  * @brief Verify YAML alias expansion is bounded.
  * @test Reject an alias bomb with std::runtime_error while accepting ordinary
  *     alias reuse.

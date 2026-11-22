@@ -20,7 +20,6 @@
 #include <iterator>
 #include <limits>
 #include <locale>
-#include <regex>
 #include <set>
 #include <sstream>
 #include <utility>
@@ -721,6 +720,76 @@ std::string YamlString(const yaml_char_t* text) {
   return text ? reinterpret_cast<const char*>(text) : "";
 }
 
+bool IsDigit(char c) { return c >= '0' && c <= '9'; }
+
+// Advance past a run of characters matching the predicate.
+template <typename Predicate>
+std::size_t SkipWhile(const std::string& text, std::size_t i,
+                      Predicate matches) {
+  while (i < text.size() && matches(text[i])) ++i;
+  return i;
+}
+
+bool IsYamlNull(const std::string& text) {
+  return text.empty() || text == "~" || text == "null" || text == "Null" ||
+         text == "NULL";
+}
+
+bool IsYamlBool(const std::string& text) {
+  return text == "true" || text == "True" || text == "TRUE" ||
+         text == "false" || text == "False" || text == "FALSE";
+}
+
+// Match [-+]?(0o[0-7]+|0x[0-9a-fA-F]+|[0-9]+).
+bool IsYamlInt(const std::string& text) {
+  std::size_t i = (!text.empty() && (text[0] == '-' || text[0] == '+')) ? 1 : 0;
+  std::size_t end;
+  if (text.compare(i, 2, "0o") == 0) {
+    end = SkipWhile(text, i + 2, [](char c) { return c >= '0' && c <= '7'; });
+    i += 2;
+  } else if (text.compare(i, 2, "0x") == 0) {
+    end = SkipWhile(text, i + 2, [](char c) {
+      return IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    });
+    i += 2;
+  } else {
+    end = SkipWhile(text, i, IsDigit);
+  }
+  return end > i && end == text.size();
+}
+
+// Match [-+]?(digits.digits?|.digits)(exponent)?, digits exponent, or
+// .inf/.nan in the YAML core spellings.
+bool IsYamlFloat(const std::string& text) {
+  std::size_t i = (!text.empty() && (text[0] == '-' || text[0] == '+')) ? 1 : 0;
+  const std::string rest = text.substr(i);
+  if (rest == ".inf" || rest == ".Inf" || rest == ".INF" || rest == ".nan" ||
+      rest == ".NaN" || rest == ".NAN")
+    return true;
+  const std::size_t whole_end = SkipWhile(text, i, IsDigit);
+  const bool has_whole = whole_end > i;
+  i = whole_end;
+  bool has_point = false;
+  if (i < text.size() && text[i] == '.') {
+    has_point = true;
+    const std::size_t fraction_end = SkipWhile(text, i + 1, IsDigit);
+    if (!has_whole && fraction_end == i + 1) return false;
+    i = fraction_end;
+  } else if (!has_whole) {
+    return false;
+  }
+  if (i < text.size() && (text[i] == 'e' || text[i] == 'E')) {
+    ++i;
+    if (i < text.size() && (text[i] == '-' || text[i] == '+')) ++i;
+    const std::size_t exponent_end = SkipWhile(text, i, IsDigit);
+    if (exponent_end == i) return false;
+    i = exponent_end;
+  } else if (!has_point) {
+    return false;
+  }
+  return i == text.size();
+}
+
 /**
  * @brief Resolve a YAML scalar into a Dataset value.
  *
@@ -739,21 +808,10 @@ Dataset YamlScalar(const std::string& text, const std::string& tag,
   if (tag == prefix + "str" || tag == "!" || (tag.empty() && !plain))
     return text;
   const bool implicit = tag.empty();
-  static const std::regex null_pattern("^(null|Null|NULL|~|)$");
-  static const std::regex bool_pattern("^(true|True|TRUE|false|False|FALSE)$");
-  static const std::regex int_pattern(
-      "^[-+]?(0o[0-7]+|0x[0-9a-fA-F]+|[0-9]+)$");
-  static const std::regex float_pattern(
-      "^[-+]?(([0-9]+\\.[0-9]*|\\.[0-9]+)([eE][-+]?[0-9]+)?|"
-      "[0-9]+[eE][-+]?[0-9]+|\\.(inf|Inf|INF|nan|NaN|NAN))$");
-  if ((implicit || tag == prefix + "null") &&
-      std::regex_match(text, null_pattern))
-    return nullptr;
-  if ((implicit || tag == prefix + "bool") &&
-      std::regex_match(text, bool_pattern))
+  if ((implicit || tag == prefix + "null") && IsYamlNull(text)) return nullptr;
+  if ((implicit || tag == prefix + "bool") && IsYamlBool(text))
     return text[0] == 't' || text[0] == 'T';
-  if ((implicit || tag == prefix + "int") &&
-      std::regex_match(text, int_pattern)) {
+  if ((implicit || tag == prefix + "int") && IsYamlInt(text)) {
     std::size_t offset = (text[0] == '-' || text[0] == '+') ? 1 : 0;
     const bool negative = text[0] == '-';
     int base = 10;
@@ -777,8 +835,7 @@ Dataset YamlScalar(const std::string& text, const std::string& tag,
     return negative ? -number : number;
   }
   if ((implicit || tag == prefix + "float") &&
-      (std::regex_match(text, float_pattern) ||
-       (tag == prefix + "float" && std::regex_match(text, int_pattern)))) {
+      (IsYamlFloat(text) || (tag == prefix + "float" && IsYamlInt(text)))) {
     std::istringstream stream(text);
     stream.imbue(std::locale::classic());
     double number;
