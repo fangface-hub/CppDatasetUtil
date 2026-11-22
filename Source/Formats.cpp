@@ -33,6 +33,8 @@ namespace {
 
 using Json = nlohmann::json;
 constexpr std::size_t kMaxDepth = Dataset::kMaxNestingDepth;
+// Total nodes that YAML aliases may expand to, guarding against alias bombs.
+constexpr std::size_t kMaxAliasNodes = 1000000;
 // TOML is parsed recursively by toml11, so deeper input is rejected up front.
 constexpr std::size_t kMaxTomlDepth = 2 * Dataset::kMaxNestingDepth;
 
@@ -685,6 +687,18 @@ std::size_t Depth(const Dataset& dataset) {
   return 0;
 }
 
+/// Count a value and everything nested in it, using recursion bounded by the
+/// nesting limit.
+std::size_t CountNodes(const Dataset& dataset) {
+  std::size_t count = 1;
+  if (const auto* array = std::get_if<Dataset::Array>(&dataset.value())) {
+    for (const auto& item : *array) count += CountNodes(item);
+  } else if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+    for (const auto& item : *map) count += CountNodes(item.second);
+  }
+  return count;
+}
+
 /// Check iteratively whether a value nests containers deeper than the limit.
 bool ExceedsDepth(const Dataset& root, std::size_t limit) {
   std::vector<std::pair<const Dataset*, std::size_t>> pending{{&root, 0}};
@@ -838,6 +852,13 @@ class YamlReader {
       throw std::runtime_error("Duplicate YAML anchor: " + anchor);
   }
 
+  // Count an alias expansion against the budget before it is copied.
+  void ChargeAlias(const Dataset& target) {
+    alias_nodes_ += CountNodes(target);
+    if (alias_nodes_ > kMaxAliasNodes)
+      throw std::runtime_error("YAML alias expansion is too large");
+  }
+
   // Validate a map key event and return its name.
   std::string ReadKey() {
     if (event_.type != YAML_SCALAR_EVENT)
@@ -938,6 +959,7 @@ class YamlReader {
           if (expecting_key())
             throw std::runtime_error("YAML map keys must be scalar strings");
           before_value();
+          ChargeAlias(it->second);
           text += ToJson(it->second).dump();
           break;
         }
@@ -954,6 +976,7 @@ class YamlReader {
       const auto it = anchors_.find(YamlString(event_.data.alias.anchor));
       if (it == anchors_.end())
         throw std::runtime_error("Unknown or recursive YAML alias");
+      ChargeAlias(it->second);
       Dataset result = it->second;
       if (depth + Depth(result) > kMaxDepth) result = ToJson(result).dump();
       Next();
@@ -1018,6 +1041,7 @@ class YamlReader {
   bool has_event_ = false;
   std::map<std::string, Dataset> anchors_;
   std::set<std::string> anchor_names_;
+  std::size_t alias_nodes_ = 0;
 };
 
 Dataset ParseContent(const std::string& content, const std::string& format,
@@ -1039,6 +1063,8 @@ Dataset ParseContent(const std::string& content, const std::string& format,
     throw std::runtime_error("Invalid JSON in " + name + ": " + error.what());
   } catch (const toml::exception& error) {
     throw std::runtime_error("Invalid TOML in " + name + ": " + error.what());
+  } catch (const std::bad_alloc&) {
+    throw std::runtime_error("Out of memory loading " + name);
   }
 }
 

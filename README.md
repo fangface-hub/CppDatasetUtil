@@ -60,7 +60,8 @@ inside inline tables, are omitted.
   numbers, strings, arrays, and objects.
 - YAML: Supports the same values as JSON and resolves basic YAML 1.2 scalar
   types. Map keys are treated as scalar strings. Multiple documents, duplicate
-  anchors, recursive aliases, and unsupported tags are errors. Output uses flow
+  anchors, recursive aliases, aliases expanding to more than 1,000,000 values in
+  total, and unsupported tags are errors. Output uses flow
   style; without comments, it uses the previous JSON-compatible syntax.
 - TOML: The root must be a table. Saving null, loading date/time values, and
   using non-finite floating-point numbers are errors.

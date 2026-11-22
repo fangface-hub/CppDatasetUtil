@@ -326,6 +326,31 @@ TEST_F(FormatTest, RejectsInvalidInputWithoutChangingDataset) {
 }
 
 /**
+ * @brief Verify YAML alias expansion is bounded.
+ * @test Reject an alias bomb with std::runtime_error while accepting ordinary
+ *     alias reuse.
+ */
+TEST_F(FormatTest, RejectsYamlAliasBomb) {
+  std::string bomb = "a: &a [x, x, x, x, x, x, x, x, x, x]\n";
+  char previous = 'a';
+  for (char name = 'b'; name <= 'i'; ++name) {
+    bomb += std::string(1, name) + ": &" + name + " [";
+    for (int i = 0; i < 10; ++i)
+      bomb += std::string(i ? ", *" : "*") + previous;
+    bomb += "]\n";
+    previous = name;
+  }
+  const auto path = Path("bomb.yaml");
+  Write(path, bomb);
+  Dataset data;
+  EXPECT_THROW(data.Load(path), std::runtime_error);
+
+  Write(path, "a: &a [1, 2]\nb: *a\nc: *a\n");
+  data.Load(path);
+  EXPECT_EQ(std::get<Dataset::Array>(data["c"].value()).size(), 2u);
+}
+
+/**
  * @brief Verify nesting beyond the limit is kept as JSON text.
  * @test Load JSON, YAML, and TOML nested deeper than the limit without
  *     crashing, expand the retained text with Parse(), and reject unsafe TOML

@@ -174,7 +174,8 @@ class CPPDATASETUTIL_API Dataset {
    * CSV is loaded as an array of string-valued maps using the first row as
    * column names; duplicate headers and inconsistent row lengths are errors.
    * YAML resolves supported core scalar types and rejects multiple documents,
-   * duplicate anchors, recursive aliases, and unsupported tags. TOML
+   * duplicate anchors, recursive aliases, aliases that expand to more than
+   * 1,000,000 values in total, and unsupported tags. TOML
    * date/time values and non-finite numbers are unsupported.
    * Maps and arrays nested deeper than kMaxNestingDepth are kept as strings
    * holding their compact JSON text (see Parse()); TOML nested more than
