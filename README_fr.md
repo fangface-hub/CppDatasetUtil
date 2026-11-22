@@ -38,7 +38,8 @@ for (const auto& [path, dataset] : Dataset::LoadDirectory("configs", true)) {
 l'extension, sans distinction de casse. Les erreurs lèvent `std::runtime_error`
 et un échec de chargement laisse le Dataset inchangé. Les commentaires sont
 enregistrés en YAML et TOML, mais ne sont pas chargés : un chargement réussi
-supprime les commentaires existants. CSV et JSON ne les enregistrent pas.
+supprime les commentaires existants. CSV et JSON ne les enregistrent pas. Les chemins sont des `std::string` en UTF-8 sur toutes
+les plateformes, Windows compris, et les noms de `LoadDirectory` aussi.
 
 Indiquer les commentaires sans `#` initial ; ils sont écrits avant la valeur
 avec le préfixe `# `. Les sauts de ligne produisent plusieurs lignes. UTF-8
@@ -53,7 +54,9 @@ sont omis.
   doivent être non vides et avoir les mêmes clés et des valeurs chaîne ; les
   colonnes sont triées par clé. Les fichiers vides ou ne contenant qu'un
   en-tête donnent un tableau vide, enregistré comme fichier vide sans conserver
-  les noms de l'en-tête.
+  les noms de l'en-tête. Au chargement, un BOM UTF-8 initial et les lignes vides
+  sont ignorés ; une valeur vide dans un fichier à une colonne est enregistrée
+  sous la forme `""`.
 - JSON : null, booléens, entiers signés 64 bits, flottants finis, chaînes,
   tableaux et objets.
 - YAML : mêmes valeurs que JSON et types scalaires de base YAML 1.2 ; les clés

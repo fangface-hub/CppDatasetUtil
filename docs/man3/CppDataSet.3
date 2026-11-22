@@ -121,6 +121,14 @@ YAML resolves supported core scalars and rejects multiple documents, duplicate
 anchors, recursive aliases and unsupported tags. TOML date/time values and
 non-finite numbers cannot be loaded.
 .PP
+When loading CSV, a leading UTF-8 BOM and blank lines are ignored; an empty
+value in a single-column file is saved as "" so the record is kept. File
+paths are std::string values encoded as UTF-8 on every platform, including
+Windows, and the names returned by LoadDirectory are UTF-8. With the
+Windows DLL, the CRT flavor (/MD or /MT, Debug or Release) and
+_ITERATOR_DEBUG_LEVEL of the consumer must match the DLL; a mismatch fails
+at link time with an unresolved CppDatasetUtilAbi1_* symbol.
+.PP
 Maps and arrays nested deeper than Dataset::kMaxNestingDepth (256) are not
 loaded as trees. Each is kept as a string holding its compact JSON text,
 which Parse converts back. YAML anchors cannot be defined inside such

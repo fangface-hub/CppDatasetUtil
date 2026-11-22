@@ -39,7 +39,8 @@ der Erweiterung ohne Beachtung der Groß- und Kleinschreibung. Fehler lösen
 `std::runtime_error` aus; ein fehlgeschlagenes Laden ändert das Dataset nicht.
 Kommentare werden in YAML und TOML gespeichert, aber nicht geladen; bei
 erfolgreichem Laden werden vorhandene Kommentare entfernt. CSV und JSON
-speichern keine Kommentare.
+speichern keine Kommentare. Dateipfade sind `std::string` in UTF-8 auf allen
+Plattformen, auch unter Windows; die Namen aus `LoadDirectory` sind ebenfalls UTF-8.
 
 Kommentare werden ohne führendes `#` gesetzt und mit Präfix `# ` vor dem Wert
 ausgegeben; Zeilenumbrüche erzeugen mehrere Kommentarzeilen. Erforderlich ist
@@ -53,6 +54,8 @@ können, etwa innerhalb von Inline-Tabellen, werden ausgelassen.
   dieselben Schlüssel und Zeichenkettenwerte haben; Spalten sind nach Schlüssel
   sortiert. Leere Dateien und Dateien nur mit Kopfzeile ergeben ein leeres
   Array; dieses wird als leere Datei gespeichert, ohne die Kopfzeile zu erhalten.
+  Beim Laden werden ein führendes UTF-8-BOM und Leerzeilen ignoriert; ein leerer
+  Wert in einer einspaltigen Datei wird als `""` gespeichert.
 - JSON: null, bool, vorzeichenbehaftete 64-Bit-Ganzzahlen, endliche
   Gleitkommazahlen, Zeichenketten, Arrays und Objekte.
 - YAML: dieselben Werte wie JSON und grundlegende YAML-1.2-Skalartypen. Schlüssel

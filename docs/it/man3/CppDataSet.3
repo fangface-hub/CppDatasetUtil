@@ -130,6 +130,15 @@ sono errori. YAML risolve gli scalari di base supportati e rifiuta documenti
 multipli, ancore duplicate, alias ricorsivi e tag non supportati. Date, ore e
 numeri non finiti TOML non vengono caricati.
 .PP
+Durante il caricamento di un CSV, un BOM UTF-8 iniziale e le righe vuote
+vengono ignorati; un valore vuoto in un file a colonna singola viene
+salvato come "" per conservare il record. I percorsi dei file sono valori
+std::string in UTF-8 su ogni piattaforma, Windows incluso, e anche i nomi
+restituiti da LoadDirectory sono UTF-8. Con la DLL Windows, la variante del
+CRT (/MD o /MT, Debug o Release) e _ITERATOR_DEBUG_LEVEL del chiamante
+devono coincidere con la DLL; in caso contrario il link fallisce con un
+simbolo non risolto CppDatasetUtilAbi1_*.
+.PP
 Le mappe e gli array annidati oltre Dataset::kMaxNestingDepth (256) non sono
 caricati come alberi. Ciascuno è conservato come stringa con il relativo
 testo JSON compatto, che Parse riconverte. Le ancore YAML non possono essere

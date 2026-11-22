@@ -162,6 +162,16 @@ verwirft mehrere Dokumente, doppelte Anker, rekursive Aliase und unbekannte
 Tags. TOML-Datums-/Zeitwerte und nicht endliche Zahlen werden nicht geladen.
 </p>
 <p>
+Beim Laden von CSV werden ein führendes UTF-8-BOM und Leerzeilen ignoriert;
+ein leerer Wert in einer einspaltigen Datei wird als "" gespeichert, damit
+der Datensatz erhalten bleibt. Dateipfade sind std::string-Werte in UTF-8
+auf allen Plattformen, auch unter Windows; die von LoadDirectory
+gelieferten Namen sind ebenfalls UTF-8. Bei der Windows-DLL müssen
+CRT-Variante (/MD oder /MT, Debug oder Release) und _ITERATOR_DEBUG_LEVEL
+des Aufrufers mit der DLL übereinstimmen; andernfalls schlägt das Linken
+mit einem nicht aufgelösten Symbol CppDatasetUtilAbi1_* fehl.
+</p>
+<p>
 Maps und Arrays, die tiefer als Dataset::kMaxNestingDepth (256)
 verschachtelt sind, werden nicht als Baum geladen. Jeder solche Wert bleibt
 als Zeichenkette mit seinem kompakten JSON-Text erhalten, den Parse

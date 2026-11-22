@@ -130,6 +130,12 @@ CSV 将首行用作列名，之后每行读取为字符串映射。重复列名�
 递归别名和不支持的标签。TOML 日期时间及非有限数值不能读取。
 </p>
 <p>
+读取 CSV 时会忽略开头的 UTF-8 BOM 和空行；单列文件中的空值保存为 ""，以免记录丢失。文件路径在所有平台（包括 Windows）上都按
+UTF-8 的 std::string 处理，LoadDirectory 返回的名称也是 UTF-8。使用 Windows DLL 时，调用方的
+CRT 类型（/MD 或 /MT，Debug 或 Release）和 _ITERATOR_DEBUG_LEVEL 必须与 DLL
+一致；否则会在链接时因未解析的 CppDatasetUtilAbi1_* 符号而报错。
+</p>
+<p>
 嵌套深度超过 Dataset::kMaxNestingDepth（256）的映射和数组不会作为树读取，而是以保存其紧凑 JSON 文本的字符串保留，可用
 Parse 转换。这些值内部不能定义 YAML 锚点，嵌套超过限制两倍的 TOML 会被拒绝，Save 也会拒绝超过限制的值。总共展开为超过
 1,000,000 个值的 YAML 别名属于错误。

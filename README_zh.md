@@ -35,7 +35,8 @@ for (const auto& [path, dataset] : Dataset::LoadDirectory("configs", true)) {
 `Load` 和 `Save` 根据不区分大小写的扩展名选择 CSV、JSON、YAML
 （`.yaml`、`.yml`）或 TOML。出错时抛出 `std::runtime_error`；
 读取失败不会更改原 Dataset。注释可保存到 YAML 和 TOML，但不会被读取，
-因此成功读取时会清除原有注释。CSV 和 JSON 不保存注释。
+因此成功读取时会清除原有注释。CSV 和 JSON 不保存注释。文件路径在所有平台（包括 Windows）上都按 UTF-8 的
+`std::string` 处理，`LoadDirectory` 返回的名称也是 UTF-8。
 
 设置注释时不要在开头添加 `#`；输出时会在值之前加上 `# ` 前缀。
 包含换行的字符串会拆分为多个注释行。注释必须是有效的 UTF-8；
@@ -45,7 +46,8 @@ for (const auto& [path, dataset] : Dataset::LoadDirectory("configs", true)) {
 - CSV：首行为列名，其余各行作为字符串值映射存入数组。重复列名或字段数
   不一致均为错误。保存时每一行必须是非空映射，具有相同的键且值均为
   字符串；列按键排序。空文件和只有表头的文件读取为空数组，空数组
-  保存为空文件，因此仅有表头的列名不会保留。
+     保存为空文件，因此仅有表头的列名不会保留。读取时会忽略开头的 UTF-8 BOM 和
+  空行；单列文件中的空值保存为 `""`。
 - JSON：支持 null、布尔值、有符号 64 位整数、有限浮点数、字符串、数组
   和对象。
 - YAML：支持与 JSON 相同的值，并解析 YAML 1.2 基本标量类型。映射键

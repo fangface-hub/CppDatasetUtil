@@ -162,6 +162,17 @@ récursifs et les balises non prises en charge. Les dates, heures et nombres
 non finis TOML ne sont pas chargés.
 </p>
 <p>
+Au chargement d'un CSV, un BOM UTF-8 initial et les lignes vides sont
+ignorés ; une valeur vide dans un fichier à une seule colonne est
+enregistrée sous la forme "" afin de conserver l'enregistrement. Les
+chemins de fichiers sont des std::string en UTF-8 sur toutes les
+plateformes, Windows compris, et les noms renvoyés par LoadDirectory sont
+aussi en UTF-8. Avec la DLL Windows, la variante de CRT (/MD ou /MT, Debug
+ou Release) et _ITERATOR_DEBUG_LEVEL de l'appelant doivent correspondre à
+la DLL ; sinon l'édition de liens échoue avec un symbole non résolu
+CppDatasetUtilAbi1_*.
+</p>
+<p>
 Les tables et tableaux imbriqués au-delà de Dataset::kMaxNestingDepth (256)
 ne sont pas chargés sous forme d'arbre. Chacun est conservé comme chaîne
 contenant son texte JSON compact, que Parse reconvertit. Les ancres YAML ne
