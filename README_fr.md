@@ -58,10 +58,18 @@ sont omis.
   tableaux et objets.
 - YAML : mêmes valeurs que JSON et types scalaires de base YAML 1.2 ; les clés
   sont des chaînes scalaires. Plusieurs documents, ancres répétées, alias
-  récursifs et balises non prises en charge sont des erreurs. L'écriture utilise
+  récursifs, alias se développant en plus de 1 000 000 de valeurs au total et
+  balises non prises en charge sont des erreurs. L'écriture utilise
   le style flow, avec une syntaxe compatible JSON en l'absence de commentaires.
 - TOML : la racine doit être une table. L'enregistrement de null, le chargement
   de dates/heures et les flottants non finis ne sont pas pris en charge.
+
+Les tables et tableaux imbriqués au-delà de `Dataset::kMaxNestingDepth` (256)
+ne sont pas chargés sous forme d'arbre `Dataset`. Chacune de ces valeurs est
+conservée comme chaîne contenant son texte JSON compact ; `Dataset::Parse(text)`
+la convertit. Les ancres YAML ne peuvent pas être définies dans ces valeurs, un
+TOML imbriqué deux fois plus profondément est rejeté et `Save` refuse les
+valeurs imbriquées au-delà de la limite.
 
 `make` construit `build/libcppdatasetutil.so`, `make test` exécute GoogleTest,
 `make doc` produit la documentation HTML Doxygen avec la liste des tests. Les

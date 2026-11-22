@@ -49,10 +49,15 @@ for (const auto& [path, dataset] : Dataset::LoadDirectory("configs", true)) {
 - JSON：支持 null、布尔值、有符号 64 位整数、有限浮点数、字符串、数组
   和对象。
 - YAML：支持与 JSON 相同的值，并解析 YAML 1.2 基本标量类型。映射键
-  被视为标量字符串。多文档、重复锚点、递归别名及不支持的标签均为
-  错误。输出使用流式格式；没有注释时使用兼容 JSON 的语法。
+  被视为标量字符串。多文档、重复锚点、递归别名、总共展开为超过 1,000,000 个值的别名及不支持的
+  标签均为错误。输出使用流式格式；没有注释时使用兼容 JSON 的语法。
 - TOML：根节点必须是表。不支持保存 null、读取日期时间值或使用非有限
   浮点数。
+
+嵌套深度超过 `Dataset::kMaxNestingDepth`（256）的映射和数组不会作为
+`Dataset` 树读取，而是以保存其紧凑 JSON 文本的字符串保留，可用
+`Dataset::Parse(text)` 转换。这些值内部不能定义 YAML 锚点，嵌套超过限制两倍的
+TOML 会被拒绝，`Save` 也会拒绝嵌套超过限制的值。
 
 `make` 构建 `build/libcppdatasetutil.so`，`make test` 运行 GoogleTest，
 `make doc` 生成包含测试列表的 Doxygen HTML 文档。API man 页面在

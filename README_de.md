@@ -57,10 +57,18 @@ können, etwa innerhalb von Inline-Tabellen, werden ausgelassen.
   Gleitkommazahlen, Zeichenketten, Arrays und Objekte.
 - YAML: dieselben Werte wie JSON und grundlegende YAML-1.2-Skalartypen. Schlüssel
   werden als skalare Zeichenketten behandelt. Mehrere Dokumente, doppelte
-  Anker, rekursive Aliase und unbekannte Tags sind Fehler. Die Ausgabe verwendet
+  Anker, rekursive Aliase, Aliase mit mehr als 1.000.000 Werten nach der
+  Expansion und unbekannte Tags sind Fehler. Die Ausgabe verwendet
   Flow-Stil; ohne Kommentare ist sie JSON-kompatibel.
 - TOML: Die Wurzel muss eine Tabelle sein. null beim Speichern, Datum/Uhrzeit
   beim Laden und nicht endliche Gleitkommazahlen sind nicht unterstützt.
+
+Maps und Arrays, die tiefer als `Dataset::kMaxNestingDepth` (256) verschachtelt
+sind, werden nicht als `Dataset`-Baum geladen. Jeder solche Wert bleibt als
+Zeichenkette mit seinem kompakten JSON-Text erhalten; `Dataset::Parse(text)`
+wandelt ihn um. YAML-Anker können innerhalb dieser Werte nicht definiert werden,
+TOML mit mehr als der doppelten Tiefe wird abgelehnt, und `Save` weist Werte
+mit Verschachtelung über dem Limit zurück.
 
 `make` erstellt `build/libcppdatasetutil.so`, `make test` führt GoogleTest aus,
 `make doc` erzeugt die Doxygen-HTML-Dokumentation einschließlich der Testliste.

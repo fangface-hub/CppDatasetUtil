@@ -44,6 +44,11 @@ null、bool、std::int64_t、double、std::string、Map、Array を
 std::int64_t、double、const char*、std::string、Map、Array からも
 構築できます。const char* に null ポインターを指定した場合は
 std::invalid_argument を送出します。
+.PP
+.ad l
+long long、std::size_t、unsigned などその他の整数型は、符号付き 64 ビット整数として保持されます。int64
+の範囲を超える符号なし値は std::out_of_range を送出します。const char* 以外のポインターは bool
+に変換されず、コンパイル時にエラーになります。
 .SH 要素へのアクセス
 .TP
 .B operator[](const std::string& key)
@@ -68,6 +73,36 @@ std::out_of_range を送出します。
 std::get_if で型を指定して値を取得できます。型が異なる場合、
 std::get は std::bad_variant_access を送出し、std::get_if は
 null ポインターを返します。
+.TP
+.B size() const noexcept
+.ad l
+マップまたは配列の要素数を返します。それ以外の値では 0 を返します。
+.TP
+.B contains(const std::string& key) const noexcept
+.ad l
+値が key を含むマップの場合に true を返します。
+.TP
+.B push_back(Dataset value)
+.ad l
+配列の末尾に要素を追加します。null の場合は先に空の配列に変換し、コメントは保持します。それ以外の型では std::logic_error
+を送出します。
+.TP
+.B erase(const std::string& key)
+.ad l
+マップの要素を削除し、存在していたかどうかを返します。マップ以外では std::logic_error を送出します。
+.TP
+.B erase(std::size_t index)
+.ad l
+配列の要素を削除し、後続の要素を前へ詰めます。配列以外では std::logic_error、範囲外では std::out_of_range
+を送出します。
+.TP
+.B value() noexcept
+.ad l
+Value への変更可能な参照を返します。別の型の値を代入すると値が置き換わり、コメントは保持されます。
+.TP
+.B operator==, operator!=
+.ad l
+値とコメントを再帰的に比較します。NaN は自分自身とも等しくありません。
 .SH コメント
 .TP
 .B comments() const noexcept
@@ -91,6 +126,13 @@ Unicode の行区切り文字は使えません。TOML で構文上配置でき�
 大文字と小文字は区別しません。コメントは読み込みません。
 成功時は既存の値とコメントを置き換え、失敗時は Dataset を変更しません。
 入出力エラー、不正な入力、未対応の拡張子や値に対して
+std::runtime_error を送出します。
+.TP
+.B "static Parse(const std::string& text, const std::string& format = ""json"")"
+.ad l
+CSV、JSON、YAML、TOML のテキストを解析します。format は大文字小文字を区別しない csv、json、yaml、yml、toml
+のいずれかで、省略時は json です。ネスト上限を含め Load
+と同じ規則に従い、コメントは読み込みません。上限より深くネストした値として保持された文字列を展開するときに使います。入力が不正な場合や未対応の形式では
 std::runtime_error を送出します。
 .TP
 .B "static LoadDirectory(const std::string& path, bool recursive = false)"
@@ -121,6 +163,11 @@ CSV の読み込みでは先頭行を列名とし、各行を文字列値のマ�
 列名の重複や列数の不一致はエラーです。YAML は対応する基本スカラー型を解決し、
 複数文書、重複アンカー、再帰的な別名、未対応のタグを拒否します。
 TOML の日時型および非有限数は読み込めません。
+.PP
+.ad l
+Dataset::kMaxNestingDepth（256）より深くネストしたマップと配列はツリーとしては読み込まれず、コンパクトな JSON
+テキストを保持する文字列になり、Parse で変換できます。これらの値の内部では YAML のアンカーを定義できず、上限の 2 倍を超える TOML
+は拒否され、Save は上限を超える値を拒否します。合計 1,000,000 個を超える値に展開される YAML の別名はエラーです。
 .SH 使用例
 .nf
 #include <Dataset.h>

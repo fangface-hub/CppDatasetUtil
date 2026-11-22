@@ -55,11 +55,19 @@ tabelle inline, vengono omessi.
 - JSON: null, booleani, interi con segno a 64 bit, numeri finiti in virgola
   mobile, stringhe, array e oggetti.
 - YAML: gli stessi valori JSON e i tipi scalari di base YAML 1.2; le chiavi
-  sono stringhe scalari. Documenti multipli, ancore duplicate, alias ricorsivi
-  e tag non supportati sono errori. L'output usa lo stile flow, compatibile
+  sono stringhe scalari. Documenti multipli, ancore duplicate, alias ricorsivi,
+  alias che si espandono in più di 1.000.000 di valori in totale e tag non
+  supportati sono errori. L'output usa lo stile flow, compatibile
   con JSON in assenza di commenti.
 - TOML: la radice deve essere una tabella. Non sono supportati il salvataggio
   di null, il caricamento di date/ore e i numeri non finiti.
+
+Le mappe e gli array annidati oltre `Dataset::kMaxNestingDepth` (256) non sono
+caricati come alberi `Dataset`. Ciascuno di questi valori è conservato come
+stringa con il relativo testo JSON compatto; `Dataset::Parse(text)` lo converte.
+Le ancore YAML non possono essere definite in questi valori, un TOML annidato
+oltre il doppio del limite è rifiutato e `Save` rifiuta i valori annidati oltre
+il limite.
 
 `make` compila `build/libcppdatasetutil.so`, `make test` esegue GoogleTest,
 `make doc` genera la documentazione HTML Doxygen con la lista dei test.

@@ -22,6 +22,10 @@ std::vector<Dataset>，Dataset::Value 是包含支持类型的 std::variant。
 默认构造函数创建不带注释的 null。也可以从 nullptr、bool、int、
 std::int64_t、double、const char*、std::string、Map 和 Array 构造。
 向 const char* 传入空指针会抛出 std::invalid_argument。
+.PP
+.ad l
+其他整数类型（如 long long、std::size_t 或 unsigned）会保存为有符号 64 位整数；超出 int64 范围的无符号值会抛出
+std::out_of_range。除 const char* 外的指针不会转换为 bool，而是在编译时被拒绝。
 .SH 访问
 .TP
 .B operator[](const std::string& key)
@@ -40,6 +44,34 @@ std::logic_error，索引越界时抛出 std::out_of_range。替换父 Dataset
 .ad l
 返回 Value 的 const 引用。类型不匹配时，std::get 抛出
 std::bad_variant_access，std::get_if 返回空指针。
+.TP
+.B size() const noexcept
+.ad l
+返回映射或数组的元素数量；其他值返回 0。
+.TP
+.B contains(const std::string& key) const noexcept
+.ad l
+当值是包含 key 的映射时返回 true。
+.TP
+.B push_back(Dataset value)
+.ad l
+向数组末尾追加元素。null 值会先变为空数组并保留其注释。其他类型会抛出 std::logic_error。
+.TP
+.B erase(const std::string& key)
+.ad l
+删除映射项并返回该项是否存在。非映射值会抛出 std::logic_error。
+.TP
+.B erase(std::size_t index)
+.ad l
+删除数组元素，后面的元素前移。非数组值抛出 std::logic_error，索引越界抛出 std::out_of_range。
+.TP
+.B value() noexcept
+.ad l
+返回 Value 的可修改引用。赋入其他类型的值会替换该值，注释保持不变。
+.TP
+.B operator==, operator!=
+.ad l
+递归比较值和注释。NaN 与自身也不相等。
 .SH 注释
 .TP
 .B comments() const noexcept
@@ -60,6 +92,12 @@ std::bad_variant_access，std::get_if 返回空指针。
 或 TOML，扩展名不区分大小写。不读取注释。成功时替换值和注释；
 失败时 Dataset 保持不变。输入输出错误、无效输入、不支持的扩展名
 或值会导致 std::runtime_error。
+.TP
+.B "static Parse(const std::string& text, const std::string& format = ""json"")"
+.ad l
+解析 CSV、JSON、YAML 或 TOML 文本。format 是不区分大小写的名称：csv、json、yaml、yml 或 toml，默认为
+json。规则（包括嵌套限制）与 Load 相同，不读取注释。可用它展开因嵌套超过限制而保留的字符串。输入无效或格式不受支持时抛出
+std::runtime_error。
 .TP
 .B "static LoadDirectory(const std::string& path, bool recursive = false)"
 .ad l
@@ -83,6 +121,11 @@ std::runtime_error。
 CSV 将首行用作列名，之后每行读取为字符串映射。重复列名和列数不一致
 均为错误。YAML 解析支持的基本标量类型，并拒绝多文档、重复锚点、
 递归别名和不支持的标签。TOML 日期时间及非有限数值不能读取。
+.PP
+.ad l
+嵌套深度超过 Dataset::kMaxNestingDepth（256）的映射和数组不会作为树读取，而是以保存其紧凑 JSON 文本的字符串保留，可用
+Parse 转换。这些值内部不能定义 YAML 锚点，嵌套超过限制两倍的 TOML 会被拒绝，Save 也会拒绝超过限制的值。总共展开为超过
+1,000,000 个值的 YAML 别名属于错误。
 .SH 示例
 .nf
 #include <Dataset.h>

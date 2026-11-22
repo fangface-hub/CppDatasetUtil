@@ -23,6 +23,11 @@ ist eine std::variant der unterstützten Typen.
 Der Standardkonstruktor erzeugt null ohne Kommentare. Konstruktoren akzeptieren
 nullptr, bool, int, std::int64_t, double, const char*, std::string, Map und
 Array. Ein null-Zeiger für const char* führt zu std::invalid_argument.
+.PP
+Jeder andere Ganzzahltyp, etwa long long, std::size_t oder unsigned, wird
+als vorzeichenbehaftete 64-Bit-Ganzzahl gespeichert; ein vorzeichenloser
+Wert über dem int64-Bereich führt zu std::out_of_range. Andere Zeiger als
+const char* werden zur Compilezeit abgelehnt, statt zu bool zu werden.
 .SH ZUGRIFF
 .TP
 .B operator[](const std::string& key)
@@ -41,6 +46,34 @@ seine Elemente ungültig.
 .B value() const noexcept
 Liefert eine const-Referenz auf Value. std::get wirft bei falschem Typ
 std::bad_variant_access; std::get_if liefert dann einen null-Zeiger.
+.TP
+.B size() const noexcept
+Liefert die Anzahl der Einträge einer Map oder eines Arrays, für jeden
+anderen Wert 0.
+.TP
+.B contains(const std::string& key) const noexcept
+Liefert true, wenn der Wert eine Map ist, die key enthält.
+.TP
+.B push_back(Dataset value)
+Hängt ein Element an ein Array an. Ein null-Wert wird zuvor zu einem leeren
+Array und behält seine Kommentare. Jeder andere Typ führt zu
+std::logic_error.
+.TP
+.B erase(const std::string& key)
+Entfernt einen Map-Eintrag und liefert, ob er existierte. Ein Wert, der
+keine Map ist, führt zu std::logic_error.
+.TP
+.B erase(std::size_t index)
+Entfernt ein Array-Element; spätere Elemente rücken nach. Ein anderer Typ
+führt zu std::logic_error, ein ungültiger Index zu std::out_of_range.
+.TP
+.B value() noexcept
+Liefert eine veränderbare Referenz auf Value. Zuweisen einer anderen
+Alternative ersetzt den Wert; die Kommentare bleiben erhalten.
+.TP
+.B operator==, operator!=
+Vergleichen Werte und Kommentare rekursiv. Ein NaN ist nie gleich sich
+selbst.
 .SH KOMMENTARE
 .TP
 .B comments() const noexcept
@@ -61,6 +94,15 @@ Lädt CSV, JSON, YAML oder TOML anhand der Erweiterung .csv, .json, .yaml,
 nicht eingelesen. Erfolg ersetzt Wert und Kommentare; bei Fehlern bleibt das
 Dataset unverändert. E/A-Fehler, ungültige Eingaben und nicht unterstützte
 Erweiterungen oder Werte führen zu std::runtime_error.
+.TP
+.B "static Parse(const std::string& text, const std::string& format = ""json"")"
+Parst CSV-, JSON-, YAML- oder TOML-Text. format ist ein Name ohne Beachtung
+der Groß- und Kleinschreibung: csv, json, yaml, yml oder toml (Standard
+json). Es gelten die Regeln von Load einschließlich der
+Verschachtelungsgrenze, jedoch ohne Kommentare. Damit lässt sich die
+Zeichenkette auflösen, die für tiefer verschachtelte Werte erhalten bleibt.
+Ungültige Eingaben oder ein nicht unterstütztes Format führen zu
+std::runtime_error.
 .TP
 .B "static LoadDirectory(const std::string& path, bool recursive = false)"
 Liefert eine nach Pfad sortierte std::list von Paaren aus Pfad und Dataset.
@@ -88,6 +130,14 @@ Zeile als Map von Zeichenketten. Doppelte Namen und unterschiedliche
 Spaltenzahlen sind Fehler. YAML löst unterstützte Basisskalare auf und
 verwirft mehrere Dokumente, doppelte Anker, rekursive Aliase und unbekannte
 Tags. TOML-Datums-/Zeitwerte und nicht endliche Zahlen werden nicht geladen.
+.PP
+Maps und Arrays, die tiefer als Dataset::kMaxNestingDepth (256)
+verschachtelt sind, werden nicht als Baum geladen. Jeder solche Wert bleibt
+als Zeichenkette mit seinem kompakten JSON-Text erhalten, den Parse
+zurückwandelt. YAML-Anker können innerhalb dieser Werte nicht definiert
+werden, TOML mit mehr als der doppelten Tiefe wird abgelehnt, und Save weist
+Werte über dem Limit zurück. YAML-Aliase, die insgesamt zu mehr als
+1.000.000 Werten expandieren, sind Fehler.
 .SH BEISPIEL
 .nf
 #include <Dataset.h>
