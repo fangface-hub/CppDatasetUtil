@@ -168,6 +168,26 @@ TEST(DatasetTest, RejectsInvalidAccess) {
 }
 
 /**
+ * @brief Verify construction from every integer type.
+ * @test Store `long long`, unsigned, and narrow integers as int64 and reject
+ *     unsigned values beyond the int64 range.
+ */
+TEST(DatasetTest, ConstructsFromAnyIntegerType) {
+  const auto get = [](const Dataset& data) {
+    return std::get<std::int64_t>(data.value());
+  };
+  EXPECT_EQ(get(Dataset(-5LL)), -5);
+  EXPECT_EQ(get(Dataset(std::size_t{7})), 7);
+  EXPECT_EQ(get(Dataset(8u)), 8);
+  EXPECT_EQ(get(Dataset(static_cast<short>(-3))), -3);
+  EXPECT_EQ(get(Dataset(std::numeric_limits<std::uint64_t>::max() / 2)),
+            std::numeric_limits<std::int64_t>::max());
+  EXPECT_THROW(Dataset(std::numeric_limits<std::uint64_t>::max()),
+               std::out_of_range);
+  EXPECT_TRUE(std::holds_alternative<bool>(Dataset(true).value()));
+}
+
+/**
  * @brief Verify JSON and YAML round trips for nested values.
  * @test Exercise null, booleans, integer limits, floating-point extremes,
  *     negative zero, escaped strings, nested containers, and extension casing.

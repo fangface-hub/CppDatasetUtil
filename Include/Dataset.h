@@ -8,10 +8,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <list>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -85,6 +87,25 @@ class CPPDATASETUTIL_API Dataset {
   Dataset(int value);
   /// Construct a signed 64-bit integer from @p value.
   Dataset(std::int64_t value);
+  /**
+   * @brief Construct a signed 64-bit integer from any other integer type.
+   * @param value Integer to store, such as `long long`, `std::size_t`, or
+   *     `unsigned`.
+   * @throws std::out_of_range if an unsigned @p value exceeds the int64 range.
+   */
+  template <typename T,
+            std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>,
+                             int> = 0>
+  Dataset(T value) {
+    if constexpr (std::is_unsigned_v<T>) {
+      if (value >
+          static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+        throw std::out_of_range("Integer outside int64 range");
+    }
+    value_ = static_cast<std::int64_t>(value);
+  }
+  /// Pointers other than strings are rejected rather than converted to bool.
+  Dataset(const void*) = delete;
   /// Construct a floating-point value from @p value; it is not range-checked.
   Dataset(double value);
   /**
