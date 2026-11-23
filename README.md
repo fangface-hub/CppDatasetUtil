@@ -67,7 +67,7 @@ inside inline tables, are omitted.
   lines are ignored when loading; an empty value in a single-column file is
   saved as `""` so the record is preserved; likewise an empty column name in a
   single-column file.
-- JSON: Supports null, booleans, signed 64-bit integers, finite floating-point
+- JSON: Supports null, booleans, signed 64-bit integers (and unsigned up to 2^64-1), finite floating-point
   numbers, strings, arrays, and objects. Unlike YAML, duplicate object keys are
   not an error: the last value wins, and duplicates inside values nested deeper
   than `kMaxNestingDepth` are kept as-is in their JSON text. Validate untrusted

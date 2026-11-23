@@ -62,7 +62,7 @@ tabelle inline, vengono omessi.
   conservare i nomi dell'intestazione. Al caricamento, un BOM UTF-8 iniziale e le
   righe vuote sono ignorati; un valore vuoto in un file a colonna singola è
   salvato come `""`, così come un nome di colonna vuoto.
-- JSON: null, booleani, interi con segno a 64 bit, numeri finiti in virgola
+- JSON: null, booleani, interi con segno a 64 bit (e senza segno fino a 2^64-1), numeri finiti in virgola
   mobile, stringhe, array e oggetti. A differenza di YAML, le chiavi duplicate
   di un oggetto non sono un errore: prevale l'ultimo valore e i duplicati nei
   valori annidati oltre `kMaxNestingDepth` restano invariati nel loro testo

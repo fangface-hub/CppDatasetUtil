@@ -229,8 +229,8 @@ TEST(DatasetTest, EditsContainersInPlace) {
 
 /**
  * @brief Verify construction from every integer type.
- * @test Store `long long`, unsigned, and narrow integers as int64 and reject
- *     unsigned values beyond the int64 range.
+ * @test Store `long long`, unsigned, and narrow integers as int64, and
+ *     unsigned values beyond the int64 range as uint64.
  */
 TEST(DatasetTest, ConstructsFromAnyIntegerType) {
   const auto get = [](const Dataset& data) {
@@ -242,8 +242,9 @@ TEST(DatasetTest, ConstructsFromAnyIntegerType) {
   EXPECT_EQ(get(Dataset(static_cast<short>(-3))), -3);
   EXPECT_EQ(get(Dataset(std::numeric_limits<std::uint64_t>::max() / 2)),
             std::numeric_limits<std::int64_t>::max());
-  EXPECT_THROW(Dataset(std::numeric_limits<std::uint64_t>::max()),
-               std::out_of_range);
+  EXPECT_EQ(cppdatasetutil::get<std::uint64_t>(
+                Dataset(std::numeric_limits<std::uint64_t>::max()).value()),
+            std::numeric_limits<std::uint64_t>::max());
   EXPECT_TRUE(cppdatasetutil::holds_alternative<bool>(Dataset(true).value()));
 }
 
@@ -393,12 +394,11 @@ TEST_F(FormatTest, RejectsInvalidInputWithoutChangingDataset) {
       {"short.csv", "a,b\n1\n"},
       {"quote.csv", "a\n\"unterminated"},
       {"bad.json", "{\"x\":"},
-      {"large.json", "9223372036854775808"},
       {"huge.json", "18446744073709551616"},
       {"small.json", "-9223372036854775809"},
       {"bad.yaml", "a: [1\n"},
       {"duplicate.yaml", "a: 1\na: 2\n"},
-      {"overflow.yaml", "a: 9223372036854775808\n"},
+      {"overflow.yaml", "a: 18446744073709551616\n"},
       {"nonfinite.yaml", "a: .inf\n"},
       {"recursive.yaml", "a: &x [*x]\n"},
       {"duplicate-anchor.yaml", "a: &x 1\nb: &x [*x]\n"},
@@ -920,4 +920,36 @@ TEST_F(FormatTest, RejectsInvalidRootDirectory) {
   const auto file = Path("file.json");
   Write(file, "{}");
   EXPECT_THROW(Dataset::LoadDirectory(file, true), std::runtime_error);
+}
+
+/**
+ * @test Round-trip the maximum uint64 value through JSON and YAML, and reject
+ *     it for TOML.
+ */
+TEST(DatasetTest, RoundTripsUnsigned64) {
+  const auto max = std::numeric_limits<std::uint64_t>::max();
+  Dataset data;
+  data["big"] = max;
+  const std::string base = ::testing::TempDir() + "u64_test";
+  for (const char* ext : {".json", ".yaml"}) {
+    data.Save(base + ext);
+    Dataset loaded;
+    loaded.Load(base + ext);
+    EXPECT_EQ(cppdatasetutil::get<std::uint64_t>(loaded["big"].value()), max);
+    std::remove((base + ext).c_str());
+  }
+  EXPECT_THROW(data.Save(base + ".toml"), std::runtime_error);
+  std::remove((base + ".toml").c_str());
+}
+
+/// @test AsInt64 and AsUint64 convert between integer alternatives.
+TEST(DatasetTest, ConvertsIntegersWithAsAccessors) {
+  const auto max = std::numeric_limits<std::uint64_t>::max();
+  EXPECT_EQ(Dataset(7).AsUint64(), 7u);
+  EXPECT_EQ(Dataset(-7).AsInt64(), -7);
+  EXPECT_EQ(Dataset(max).AsUint64(), max);
+  EXPECT_THROW(Dataset(-1).AsUint64(), std::out_of_range);
+  EXPECT_THROW(Dataset(max).AsInt64(), std::out_of_range);
+  EXPECT_THROW(Dataset("x").AsInt64(), std::logic_error);
+  EXPECT_THROW(Dataset(1.5).AsUint64(), std::logic_error);
 }

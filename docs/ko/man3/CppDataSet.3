@@ -29,7 +29,7 @@ std::invalid_argument가 발생합니다.
 .PP
 .ad l
 long long, std::size_t, unsigned 등 그 밖의 정수 타입은 부호 있는 64비트 정수로 저장됩니다. int64
-범위를 넘는 부호 없는 값은 std::out_of_range를 발생시킵니다. const char*가 아닌 포인터는 bool로 변환되지
+범위를 넘는 부호 없는 값은 2^64-1까지 부호 없는 64비트 정수(std::uint64_t)로 저장됩니다. 이 값은 JSON과 YAML에는 저장할 수 있지만 TOML에는 저장할 수 없습니다. const char*가 아닌 포인터는 bool로 변환되지
 않고 컴파일 시 거부됩니다.
 .SH 접근
 .TP

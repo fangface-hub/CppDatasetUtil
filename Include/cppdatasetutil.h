@@ -140,11 +140,13 @@ class CPPDATASETUTIL_API Dataset {
   /**
    * @brief Variant holding the supported scalar and container types.
    *
-   * Integers use std::int64_t; floating-point values use double. The model
+   * Integers use std::int64_t, except values above its maximum, which use
+   * std::uint64_t; floating-point values use double. The model
    * accepts non-finite doubles, but the file formats reject them on save.
    */
   using Value = cppdatasetutil::variant<std::nullptr_t, bool, std::int64_t,
-                                        double, std::string, Map, Array>;
+                                        std::uint64_t, double, std::string,
+                                        Map, Array>;
 
   /**
    * @brief Maximum number of nested maps and arrays loaded or saved.
@@ -165,17 +167,17 @@ class CPPDATASETUTIL_API Dataset {
   /// Construct a signed 64-bit integer from @p value.
   Dataset(std::int64_t value);
   /**
-   * @brief Construct a signed 64-bit integer from any other integer type.
+   * @brief Construct an integer from any other integer type.
    * @param value Integer to store, such as `long long`, `std::size_t`, or
-   *     `unsigned`.
-   * @throws std::out_of_range if an unsigned @p value exceeds the int64 range.
+   *     `unsigned`. Unsigned values above the int64 range are stored as
+   *     std::uint64_t; all others as std::int64_t.
    */
   template <typename T,
             typename std::enable_if<std::is_integral<T>::value &&
                                         !std::is_same<T, bool>::value,
                                     int>::type = 0>
   Dataset(T value) {
-    value_ = ToInt64(value, std::is_unsigned<T>());
+    value_ = ToInteger(value, std::is_unsigned<T>());
   }
   /// Pointers other than strings are rejected rather than converted to bool.
   Dataset(const void*) = delete;
@@ -293,6 +295,19 @@ class CPPDATASETUTIL_API Dataset {
   Value& value() noexcept;
 
   /**
+   * @brief Read an integer value as std::int64_t.
+   * @throws std::logic_error if the value is not an integer.
+   * @throws std::out_of_range if the value exceeds the int64 range.
+   */
+  std::int64_t AsInt64() const;
+  /**
+   * @brief Read an integer value as std::uint64_t.
+   * @throws std::logic_error if the value is not an integer.
+   * @throws std::out_of_range if the value is negative.
+   */
+  std::uint64_t AsUint64() const;
+
+  /**
    * @brief Inspect comments associated with this value.
    * @return Const reference to the comment strings, in their stored order.
    */
@@ -393,14 +408,14 @@ class CPPDATASETUTIL_API Dataset {
 
  private:
   template <typename T>
-  static std::int64_t ToInt64(T value, std::true_type) {
-    if (value >
+  static Value ToInteger(T value, std::true_type) {
+    if (static_cast<std::uint64_t>(value) >
         static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
-      throw std::out_of_range("Integer outside int64 range");
+      return static_cast<std::uint64_t>(value);
     return static_cast<std::int64_t>(value);
   }
   template <typename T>
-  static std::int64_t ToInt64(T value, std::false_type) {
+  static Value ToInteger(T value, std::false_type) {
     return static_cast<std::int64_t>(value);
   }
 

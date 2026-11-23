@@ -26,7 +26,8 @@ const char* causa std::invalid_argument.
 .PP
 Qualsiasi altro tipo intero, come long long, std::size_t o unsigned, è
 memorizzato come intero con segno a 64 bit; un valore senza segno oltre
-l'intervallo int64 causa std::out_of_range. I puntatori diversi da const
+l'intervallo int64 è memorizzato come intero senza segno a 64 bit (std::uint64_t) fino a
+2^64-1; tali valori si possono salvare in JSON e YAML, ma non in TOML. I puntatori diversi da const
 char* sono rifiutati in compilazione invece di diventare bool.
 .SH ACCESSO
 .TP

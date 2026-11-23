@@ -119,6 +119,24 @@ const Dataset::Value& Dataset::value() const noexcept { return value_; }
 
 Dataset::Value& Dataset::value() noexcept { return value_; }
 
+std::int64_t Dataset::AsInt64() const {
+  if (const auto* item = cppdatasetutil::get_if<std::int64_t>(&value_))
+    return *item;
+  if (cppdatasetutil::holds_alternative<std::uint64_t>(value_))
+    throw std::out_of_range("Integer outside int64 range");
+  throw std::logic_error("Dataset is not an integer");
+}
+
+std::uint64_t Dataset::AsUint64() const {
+  if (const auto* item = cppdatasetutil::get_if<std::uint64_t>(&value_))
+    return *item;
+  if (const auto* item = cppdatasetutil::get_if<std::int64_t>(&value_)) {
+    if (*item < 0) throw std::out_of_range("Integer is negative");
+    return static_cast<std::uint64_t>(*item);
+  }
+  throw std::logic_error("Dataset is not an integer");
+}
+
 const std::vector<std::string>& Dataset::comments() const noexcept {
   return comments_;
 }

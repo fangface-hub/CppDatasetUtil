@@ -63,10 +63,9 @@ class JsonBuilder {
     return Add(static_cast<std::int64_t>(value), std::to_string(value));
   }
   bool number_unsigned(Json::number_unsigned_t value) {
-    if (raw_depth_ == 0 &&
-        value > static_cast<std::uint64_t>(
+    if (value > static_cast<std::uint64_t>(
                     std::numeric_limits<std::int64_t>::max()))
-      throw std::runtime_error("Integer outside int64 range");
+      return Add(static_cast<std::uint64_t>(value), std::to_string(value));
     return Add(static_cast<std::int64_t>(value), std::to_string(value));
   }
   bool number_float(Json::number_float_t value, const std::string& text) {
@@ -271,6 +270,8 @@ Json ToJson(const Dataset& dataset) {
   if (cppdatasetutil::holds_alternative<std::nullptr_t>(value)) return nullptr;
   if (const auto* item = cppdatasetutil::get_if<bool>(&value)) return *item;
   if (const auto* item = cppdatasetutil::get_if<std::int64_t>(&value))
+    return *item;
+  if (const auto* item = cppdatasetutil::get_if<std::uint64_t>(&value))
     return *item;
   if (const auto* item = cppdatasetutil::get_if<double>(&value)) {
     if (!std::isfinite(*item)) throw std::runtime_error("Non-finite number");
@@ -570,6 +571,8 @@ toml::value ToToml(const Dataset& dataset) {
     return WithTomlComments(toml::value(*item), dataset);
   if (const auto* item = cppdatasetutil::get_if<std::int64_t>(&value))
     return WithTomlComments(toml::value(*item), dataset);
+  if (cppdatasetutil::holds_alternative<std::uint64_t>(value))
+    throw std::runtime_error("TOML cannot represent integers above int64");
   if (const auto* item = cppdatasetutil::get_if<double>(&value)) {
     if (!std::isfinite(*item)) throw std::runtime_error("Non-finite number");
     return WithTomlComments(toml::value(*item), dataset);
@@ -912,8 +915,9 @@ Dataset YamlScalar(const std::string& text, const std::string& tag,
     }
     const auto limit =
         static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
-    if (overflow || magnitude > limit + (negative ? 1 : 0))
-      throw std::runtime_error("YAML integer outside int64 range");
+    if (overflow || (negative && magnitude > limit + 1))
+      throw std::runtime_error("YAML integer outside 64-bit range");
+    if (!negative && magnitude > limit) return magnitude;
     if (negative && magnitude == limit + 1)
       return std::numeric_limits<std::int64_t>::min();
     const auto number = static_cast<std::int64_t>(magnitude);
