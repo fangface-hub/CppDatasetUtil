@@ -158,6 +158,9 @@ jobs:
           Copy-Item third_party\json\LICENSE.MIT "$sdk\licenses\json-LICENSE"
           Copy-Item third_party\libyaml\License "$sdk\licenses\libyaml-LICENSE"
           Copy-Item third_party\toml11\LICENSE "$sdk\licenses\toml11-LICENSE"
+          Copy-Item third_party\mpark_variant\LICENSE "$sdk\licenses\mpark-variant-LICENSE"
+          Copy-Item third_party\ghc_filesystem\LICENSE "$sdk\licenses\ghc-filesystem-LICENSE"
+          Copy-Item Include\cppdatasetutil "$sdk" -Recurse
           Compress-Archive -Path "$sdk\*" -DestinationPath "windows-release\cppdatasetutil-$env:PACKAGE_VERSION-windows-x64.zip"
       - uses: actions/upload-artifact@v4
         with:

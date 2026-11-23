@@ -13,10 +13,10 @@ add_library(cppdatasetutil SHARED
   third_party/libyaml/src/scanner.c
   third_party/libyaml/src/writer.c
 )
-target_compile_features(cppdatasetutil PUBLIC cxx_std_17)
+target_compile_features(cppdatasetutil PUBLIC cxx_std_11)
 target_include_directories(cppdatasetutil
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Include>
-  PRIVATE third_party/json third_party/toml11 third_party/libyaml/include
+  PRIVATE third_party/json third_party/ghc_filesystem third_party/toml11 third_party/libyaml/include
 )
 target_compile_definitions(cppdatasetutil PRIVATE
   CPPDATASETUTIL_BUILD YAML_DECLARE_STATIC
@@ -30,6 +30,7 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
   add_executable(dll_consumer_test Tests/DllConsumerTest.cpp)
+  target_compile_features(dll_consumer_test PRIVATE cxx_std_17)
   target_link_libraries(dll_consumer_test PRIVATE cppdatasetutil)
   add_test(NAME dll_consumer COMMAND dll_consumer_test)
 endif()

@@ -28,6 +28,7 @@ make install DESTDIR="%{buildroot}" PREFIX="%{_prefix}" LIBDIR="%{_libdir}" MAND
 %license %{_datadir}/licenses/cppdatasetutil/*
 %doc README.md README_ja.md README_de.md README_fr.md README_it.md README_ko.md README_zh.md
 %{_includedir}/cppdatasetutil.h
+%{_includedir}/cppdatasetutil/
 %{_libdir}/libcppdatasetutil.so
 %{_libdir}/libcppdatasetutil.so.0
 %{_mandir}/man3/CppDataSet.3*

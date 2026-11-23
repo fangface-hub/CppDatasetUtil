@@ -2,7 +2,8 @@ CXX ?= g++
 CC ?= cc
 CXXFLAGS ?= -O2 -g
 CFLAGS ?= -O2 -g
-CPPFLAGS += -IInclude -Ithird_party/json -Ithird_party/toml11 -Ithird_party/libyaml/include
+CXX_STD ?= c++17
+CPPFLAGS += -IInclude -Ithird_party/ghc_filesystem -Ithird_party/json -Ithird_party/toml11 -Ithird_party/libyaml/include
 CLANG_FORMAT ?= clang-format
 PREFIX ?= /usr
 LIBDIR ?= $(PREFIX)/lib
@@ -30,7 +31,7 @@ build/yaml-%.o: third_party/libyaml/src/%.c | build
 		-c $< -o $@
 
 $(LIBRARY_REAL): Source/Dataset.cpp Source/Formats.cpp Include/cppdatasetutil.h $(YAML_OBJECTS) | build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -Wall -Wextra -fPIC -shared \
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=$(CXX_STD) -Wall -Wextra -fPIC -shared \
 		-Wl,-soname,libcppdatasetutil.so.0 \
 		Source/Dataset.cpp Source/Formats.cpp $(YAML_OBJECTS) $(LDFLAGS) -o $@
 
@@ -38,7 +39,7 @@ $(LIBRARY): $(LIBRARY_REAL)
 	ln -sfn libcppdatasetutil.so.0 $@
 
 $(TEST): Tests/DatasetTest.cpp $(LIBRARY) Include/cppdatasetutil.h
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -Wall -Wextra $< -Lbuild \
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=$(CXX_STD) -Wall -Wextra $< -Lbuild \
 		-Wl,-rpath,'$$ORIGIN' -lcppdatasetutil -lgtest_main -lgtest -pthread -o $@
 
 test: $(TEST)
@@ -50,6 +51,10 @@ install: $(LIBRARY)
 	install -m 755 $(LIBRARY_REAL) "$(DESTDIR)$(LIBDIR)/"
 	ln -sfn libcppdatasetutil.so.0 "$(DESTDIR)$(LIBDIR)/libcppdatasetutil.so"
 	install -m 644 Include/cppdatasetutil.h "$(DESTDIR)$(INCLUDEDIR)/"
+	install -d "$(DESTDIR)$(INCLUDEDIR)/cppdatasetutil/mpark"
+	install -m 644 Include/cppdatasetutil/mpark/*.hpp "$(DESTDIR)$(INCLUDEDIR)/cppdatasetutil/mpark/"
+	install -m 644 third_party/mpark_variant/LICENSE "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/mpark-variant-LICENSE"
+	install -m 644 third_party/ghc_filesystem/LICENSE "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/ghc-filesystem-LICENSE"
 	install -m 644 LICENSE "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/LICENSE"
 	install -m 644 third_party/json/LICENSE.MIT "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/json-LICENSE"
 	install -m 644 third_party/libyaml/License "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/libyaml-LICENSE"

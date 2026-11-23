@@ -76,6 +76,9 @@ cmp "$source_dir/LICENSE" "$root/usr/share/licenses/cppdatasetutil/LICENSE"
 cmp "$source_dir/third_party/json/LICENSE.MIT" "$root/usr/share/licenses/cppdatasetutil/json-LICENSE"
 cmp "$source_dir/third_party/libyaml/License" "$root/usr/share/licenses/cppdatasetutil/libyaml-LICENSE"
 cmp "$source_dir/third_party/toml11/LICENSE" "$root/usr/share/licenses/cppdatasetutil/toml11-LICENSE"
+cmp "$source_dir/third_party/mpark_variant/LICENSE" "$root/usr/share/licenses/cppdatasetutil/mpark-variant-LICENSE"
+cmp "$source_dir/third_party/ghc_filesystem/LICENSE" "$root/usr/share/licenses/cppdatasetutil/ghc-filesystem-LICENSE"
+cmp "$source_dir/Include/cppdatasetutil/mpark/variant.hpp" "$root/usr/include/cppdatasetutil/mpark/variant.hpp"
 if [ "$format" = rpm ]; then
   mandir=$(rpm --eval '%{_mandir}')
 else
