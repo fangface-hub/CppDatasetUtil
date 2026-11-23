@@ -13,6 +13,10 @@
 extern "C" CPPDATASETUTIL_API const int CPPDATASETUTIL_ABI_SYMBOL = 1;
 #endif
 
+#if CPPDATASETUTIL_CPLUSPLUS_ < 201703L
+constexpr std::size_t Dataset::kMaxNestingDepth;
+#endif
+
 Dataset::Dataset(std::nullptr_t) : value_(nullptr) {}
 Dataset::Dataset(bool value) : value_(value) {}
 Dataset::Dataset(int value) : value_(static_cast<std::int64_t>(value)) {}
@@ -26,10 +30,10 @@ Dataset::Dataset(Map value) : value_(std::move(value)) {}
 Dataset::Dataset(Array value) : value_(std::move(value)) {}
 
 Dataset& Dataset::operator[](const std::string& key) {
-  if (std::holds_alternative<std::nullptr_t>(value_)) {
+  if (cppdatasetutil::holds_alternative<std::nullptr_t>(value_)) {
     value_ = Map{};
   }
-  auto* map = std::get_if<Map>(&value_);
+  auto* map = cppdatasetutil::get_if<Map>(&value_);
   if (!map) {
     throw std::logic_error("Dataset is not a map");
   }
@@ -37,7 +41,7 @@ Dataset& Dataset::operator[](const std::string& key) {
 }
 
 const Dataset& Dataset::operator[](const std::string& key) const {
-  const auto* map = std::get_if<Map>(&value_);
+  const auto* map = cppdatasetutil::get_if<Map>(&value_);
   if (!map) {
     throw std::logic_error("Dataset is not a map");
   }
@@ -45,7 +49,7 @@ const Dataset& Dataset::operator[](const std::string& key) const {
 }
 
 Dataset& Dataset::operator[](std::size_t index) {
-  auto* array = std::get_if<Array>(&value_);
+  auto* array = cppdatasetutil::get_if<Array>(&value_);
   if (!array) {
     throw std::logic_error("Dataset is not an array");
   }
@@ -53,7 +57,7 @@ Dataset& Dataset::operator[](std::size_t index) {
 }
 
 const Dataset& Dataset::operator[](std::size_t index) const {
-  const auto* array = std::get_if<Array>(&value_);
+  const auto* array = cppdatasetutil::get_if<Array>(&value_);
   if (!array) {
     throw std::logic_error("Dataset is not an array");
   }
@@ -61,21 +65,23 @@ const Dataset& Dataset::operator[](std::size_t index) const {
 }
 
 std::size_t Dataset::size() const noexcept {
-  if (const auto* map = std::get_if<Map>(&value_)) return map->size();
-  if (const auto* array = std::get_if<Array>(&value_)) return array->size();
+  if (const auto* map = cppdatasetutil::get_if<Map>(&value_))
+    return map->size();
+  if (const auto* array = cppdatasetutil::get_if<Array>(&value_))
+    return array->size();
   return 0;
 }
 
 bool Dataset::contains(const std::string& key) const noexcept {
-  const auto* map = std::get_if<Map>(&value_);
+  const auto* map = cppdatasetutil::get_if<Map>(&value_);
   return map && map->find(key) != map->end();
 }
 
 void Dataset::push_back(Dataset value) {
-  if (std::holds_alternative<std::nullptr_t>(value_)) {
+  if (cppdatasetutil::holds_alternative<std::nullptr_t>(value_)) {
     value_ = Array{};
   }
-  auto* array = std::get_if<Array>(&value_);
+  auto* array = cppdatasetutil::get_if<Array>(&value_);
   if (!array) {
     throw std::logic_error("Dataset is not an array");
   }
@@ -83,7 +89,7 @@ void Dataset::push_back(Dataset value) {
 }
 
 bool Dataset::erase(const std::string& key) {
-  auto* map = std::get_if<Map>(&value_);
+  auto* map = cppdatasetutil::get_if<Map>(&value_);
   if (!map) {
     throw std::logic_error("Dataset is not a map");
   }
@@ -91,7 +97,7 @@ bool Dataset::erase(const std::string& key) {
 }
 
 void Dataset::erase(std::size_t index) {
-  auto* array = std::get_if<Array>(&value_);
+  auto* array = cppdatasetutil::get_if<Array>(&value_);
   if (!array) {
     throw std::logic_error("Dataset is not an array");
   }

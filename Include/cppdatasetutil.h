@@ -15,8 +15,43 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
+
+#if defined(_MSVC_LANG)
+#define CPPDATASETUTIL_CPLUSPLUS_ _MSVC_LANG
+#else
+#define CPPDATASETUTIL_CPLUSPLUS_ __cplusplus
+#endif
+
+#if CPPDATASETUTIL_CPLUSPLUS_ >= 201703L
+#include <variant>
+#else
+#include "cppdatasetutil/mpark/variant.hpp"
+#endif
+
+/**
+ * @brief Variant helpers that work in C++11 and later.
+ *
+ * With C++17 or later these are the std:: names; otherwise they come from the
+ * bundled mpark/variant. Use them to read Dataset::value() in code that must
+ * also build as C++11 or C++14, for example
+ * `cppdatasetutil::get<std::string>(data.value())`.
+ */
+namespace cppdatasetutil {
+#if CPPDATASETUTIL_CPLUSPLUS_ >= 201703L
+using std::bad_variant_access;
+using std::get;
+using std::get_if;
+using std::holds_alternative;
+using std::variant;
+#else
+using mpark::bad_variant_access;
+using mpark::get;
+using mpark::get_if;
+using mpark::holds_alternative;
+using mpark::variant;
+#endif
+}  // namespace cppdatasetutil
 
 #if defined(_WIN32)
 #if defined(CPPDATASETUTIL_BUILD)
@@ -62,7 +97,7 @@
 extern "C" CPPDATASETUTIL_API const int CPPDATASETUTIL_ABI_SYMBOL;
 #if !defined(CPPDATASETUTIL_BUILD)
 namespace cppdatasetutil_detail {
-inline const int kAbiMarker = CPPDATASETUTIL_ABI_SYMBOL;
+static const int kAbiMarker = CPPDATASETUTIL_ABI_SYMBOL;
 }  // namespace cppdatasetutil_detail
 #endif
 #pragma warning(push)
@@ -88,7 +123,8 @@ inline const int kAbiMarker = CPPDATASETUTIL_ABI_SYMBOL;
  *
  * Dataset loaded;
  * loaded.Load("config.yaml");
- * const auto& host = std::get<std::string>(loaded["server"]["host"].value());
+ * const auto& host =
+ * cppdatasetutil::get<std::string>(loaded["server"]["host"].value());
  * @endcode
  *
  * Loading replaces the complete value and discards comments. Saving comments
@@ -107,8 +143,8 @@ class CPPDATASETUTIL_API Dataset {
    * Integers use std::int64_t; floating-point values use double. The model
    * accepts non-finite doubles, but the file formats reject them on save.
    */
-  using Value = std::variant<std::nullptr_t, bool, std::int64_t, double,
-                             std::string, Map, Array>;
+  using Value = cppdatasetutil::variant<std::nullptr_t, bool, std::int64_t,
+                                        double, std::string, Map, Array>;
 
   /**
    * @brief Maximum number of nested maps and arrays loaded or saved.
@@ -135,15 +171,11 @@ class CPPDATASETUTIL_API Dataset {
    * @throws std::out_of_range if an unsigned @p value exceeds the int64 range.
    */
   template <typename T,
-            std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>,
-                             int> = 0>
+            typename std::enable_if<std::is_integral<T>::value &&
+                                        !std::is_same<T, bool>::value,
+                                    int>::type = 0>
   Dataset(T value) {
-    if constexpr (std::is_unsigned_v<T>) {
-      if (value >
-          static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
-        throw std::out_of_range("Integer outside int64 range");
-    }
-    value_ = static_cast<std::int64_t>(value);
+    value_ = ToInt64(value, std::is_unsigned<T>());
   }
   /// Pointers other than strings are rejected rather than converted to bool.
   Dataset(const void*) = delete;
@@ -246,10 +278,10 @@ class CPPDATASETUTIL_API Dataset {
 
   /**
    * @brief Inspect the underlying variant.
-   * @return Const reference to the value; use std::get or std::get_if to
-   *     inspect the selected type.
+   * @return Const reference to the value; use cppdatasetutil::get or
+   * cppdatasetutil::get_if to inspect the selected type.
    *
-   * std::get throws std::bad_variant_access for a mismatched type; std::get_if
+   * get throws bad_variant_access for a mismatched type; get_if
    * returns null instead. Replacing the Dataset changes the referenced value.
    */
   const Value& value() const noexcept;
@@ -360,6 +392,18 @@ class CPPDATASETUTIL_API Dataset {
   void Save(const std::string& path) const;
 
  private:
+  template <typename T>
+  static std::int64_t ToInt64(T value, std::true_type) {
+    if (value >
+        static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+      throw std::out_of_range("Integer outside int64 range");
+    return static_cast<std::int64_t>(value);
+  }
+  template <typename T>
+  static std::int64_t ToInt64(T value, std::false_type) {
+    return static_cast<std::int64_t>(value);
+  }
+
   Value value_ = nullptr;
   std::vector<std::string> comments_;
 };

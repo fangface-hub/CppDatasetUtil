@@ -12,9 +12,7 @@
 #include <yaml.h>
 
 #include <algorithm>
-#include <charconv>
 #include <cmath>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -26,10 +24,20 @@
 #include <utility>
 
 #include "cppdatasetutil.h"
+#if CPPDATASETUTIL_CPLUSPLUS_ >= 201703L
+#include <filesystem>
+#else
+#include "ghc/filesystem.hpp"
+#endif
 #include "nlohmann/json.hpp"
 #include "toml.hpp"
 
 namespace {
+#if CPPDATASETUTIL_CPLUSPLUS_ >= 201703L
+namespace fs = std::filesystem;
+#else
+namespace fs = ghc::filesystem;
+#endif
 
 using Json = nlohmann::json;
 constexpr std::size_t kMaxDepth = Dataset::kMaxNestingDepth;
@@ -113,7 +121,7 @@ class JsonBuilder {
     } else if (stack_.empty()) {
       result_ = std::move(value);
     } else if (stack_.back().is_map) {
-      stack_.back().map.insert_or_assign(stack_.back().key, std::move(value));
+      stack_.back().map[stack_.back().key] = std::move(value);
     } else {
       stack_.back().array.push_back(std::move(value));
     }
@@ -189,16 +197,11 @@ std::string Format(const std::string& path) {
 
 /// Interpret a std::string path as UTF-8 on every platform. Without this,
 /// Windows would use the ANSI code page and fail on non-ASCII names.
-std::filesystem::path PathFromUtf8(const std::string& path) {
-  return std::filesystem::u8path(path);
-}
+fs::path PathFromUtf8(const std::string& path) { return fs::u8path(path); }
 
-std::string PathToUtf8(const std::filesystem::path& path) {
-  return path.u8string();
-}
+std::string PathToUtf8(const fs::path& path) { return path.u8string(); }
 
-void DirectoryWarning(const std::filesystem::path& path,
-                      const std::string& reason) {
+void DirectoryWarning(const fs::path& path, const std::string& reason) {
   std::cerr << "Dataset: skipping " << PathToUtf8(path) << ": " << reason
             << '\n';
 }
@@ -217,10 +220,8 @@ void DirectoryWarning(const std::filesystem::path& path,
  * @param ancestors Canonical directories in the current traversal path.
  * @param files Destination for supported regular-file paths.
  */
-void CollectFiles(const std::filesystem::path& directory, bool recursive,
-                  bool root, std::set<std::filesystem::path>& ancestors,
-                  std::vector<std::filesystem::path>& files) {
-  namespace fs = std::filesystem;
+void CollectFiles(const fs::path& directory, bool recursive, bool root,
+                  std::set<fs::path>& ancestors, std::vector<fs::path>& files) {
   std::error_code error;
   const auto canonical = fs::canonical(directory, error);
   if (error) {
@@ -267,21 +268,23 @@ void CollectFiles(const std::filesystem::path& directory, bool recursive,
 
 Json ToJson(const Dataset& dataset) {
   const auto& value = dataset.value();
-  if (std::holds_alternative<std::nullptr_t>(value)) return nullptr;
-  if (const auto* item = std::get_if<bool>(&value)) return *item;
-  if (const auto* item = std::get_if<std::int64_t>(&value)) return *item;
-  if (const auto* item = std::get_if<double>(&value)) {
+  if (cppdatasetutil::holds_alternative<std::nullptr_t>(value)) return nullptr;
+  if (const auto* item = cppdatasetutil::get_if<bool>(&value)) return *item;
+  if (const auto* item = cppdatasetutil::get_if<std::int64_t>(&value))
+    return *item;
+  if (const auto* item = cppdatasetutil::get_if<double>(&value)) {
     if (!std::isfinite(*item)) throw std::runtime_error("Non-finite number");
     return *item;
   }
-  if (const auto* item = std::get_if<std::string>(&value)) return *item;
-  if (const auto* items = std::get_if<Dataset::Array>(&value)) {
+  if (const auto* item = cppdatasetutil::get_if<std::string>(&value))
+    return *item;
+  if (const auto* items = cppdatasetutil::get_if<Dataset::Array>(&value)) {
     Json result = Json::array();
     for (const auto& item : *items) result.push_back(ToJson(item));
     return result;
   }
   Json result = Json::object();
-  for (const auto& item : std::get<Dataset::Map>(value)) {
+  for (const auto& item : cppdatasetutil::get<Dataset::Map>(value)) {
     result[item.first] = ToJson(item.second);
   }
   return result;
@@ -330,11 +333,13 @@ std::vector<std::string> CommentLines(const Dataset& dataset) {
 
 bool HasComments(const Dataset& dataset) {
   if (!dataset.comments().empty()) return true;
-  if (const auto* array = std::get_if<Dataset::Array>(&dataset.value())) {
+  if (const auto* array =
+          cppdatasetutil::get_if<Dataset::Array>(&dataset.value())) {
     for (const auto& item : *array)
       if (HasComments(item)) return true;
   }
-  if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+  if (const auto* map =
+          cppdatasetutil::get_if<Dataset::Map>(&dataset.value())) {
     for (const auto& item : *map)
       if (HasComments(item.second)) return true;
   }
@@ -346,11 +351,13 @@ bool HasComments(const Dataset& dataset) {
 constexpr std::size_t kMaxSimpleKeyLength = 512;
 
 bool HasLongKey(const Dataset& dataset) {
-  if (const auto* array = std::get_if<Dataset::Array>(&dataset.value())) {
+  if (const auto* array =
+          cppdatasetutil::get_if<Dataset::Array>(&dataset.value())) {
     for (const auto& item : *array)
       if (HasLongKey(item)) return true;
   }
-  if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+  if (const auto* map =
+          cppdatasetutil::get_if<Dataset::Map>(&dataset.value())) {
     for (const auto& item : *map) {
       if (Json(item.first).dump().size() > kMaxSimpleKeyLength) return true;
       if (HasLongKey(item.second)) return true;
@@ -373,7 +380,8 @@ void AppendYamlComments(const Dataset& dataset, std::size_t indent,
  */
 void AppendYamlValue(const Dataset& dataset, std::size_t indent,
                      std::string& output) {
-  if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+  if (const auto* map =
+          cppdatasetutil::get_if<Dataset::Map>(&dataset.value())) {
     if (map->empty()) {
       output += "{}";
       return;
@@ -394,7 +402,7 @@ void AppendYamlValue(const Dataset& dataset, std::size_t indent,
     }
     output += std::string(indent, ' ') + "}";
   } else if (const auto* array =
-                 std::get_if<Dataset::Array>(&dataset.value())) {
+                 cppdatasetutil::get_if<Dataset::Array>(&dataset.value())) {
     if (array->empty()) {
       output += "[]";
       return;
@@ -558,22 +566,22 @@ toml::value WithTomlComments(toml::value value, const Dataset& dataset) {
 
 toml::value ToToml(const Dataset& dataset) {
   const auto& value = dataset.value();
-  if (const auto* item = std::get_if<bool>(&value))
+  if (const auto* item = cppdatasetutil::get_if<bool>(&value))
     return WithTomlComments(toml::value(*item), dataset);
-  if (const auto* item = std::get_if<std::int64_t>(&value))
+  if (const auto* item = cppdatasetutil::get_if<std::int64_t>(&value))
     return WithTomlComments(toml::value(*item), dataset);
-  if (const auto* item = std::get_if<double>(&value)) {
+  if (const auto* item = cppdatasetutil::get_if<double>(&value)) {
     if (!std::isfinite(*item)) throw std::runtime_error("Non-finite number");
     return WithTomlComments(toml::value(*item), dataset);
   }
-  if (const auto* item = std::get_if<std::string>(&value))
+  if (const auto* item = cppdatasetutil::get_if<std::string>(&value))
     return WithTomlComments(toml::value(*item), dataset);
-  if (const auto* items = std::get_if<Dataset::Array>(&value)) {
+  if (const auto* items = cppdatasetutil::get_if<Dataset::Array>(&value)) {
     toml::array result;
     for (const auto& item : *items) result.push_back(ToToml(item));
     return WithTomlComments(toml::value(std::move(result)), dataset);
   }
-  if (const auto* items = std::get_if<Dataset::Map>(&value)) {
+  if (const auto* items = cppdatasetutil::get_if<Dataset::Map>(&value)) {
     toml::table result;
     for (const auto& item : *items)
       result.emplace(item.first, ToToml(item.second));
@@ -685,10 +693,11 @@ std::string CsvField(const std::string& value, bool quote_empty = false) {
 }
 
 std::string SaveCsv(const Dataset& data) {
-  const auto* rows = std::get_if<Dataset::Array>(&data.value());
+  const auto* rows = cppdatasetutil::get_if<Dataset::Array>(&data.value());
   if (!rows) throw std::runtime_error("CSV requires an array of records");
   if (rows->empty()) return "";
-  const auto* header = std::get_if<Dataset::Map>(&rows->front().value());
+  const auto* header =
+      cppdatasetutil::get_if<Dataset::Map>(&rows->front().value());
   if (!header || header->empty())
     throw std::runtime_error("CSV requires nonempty record maps");
   std::string result;
@@ -700,7 +709,7 @@ std::string SaveCsv(const Dataset& data) {
   }
   result += "\r\n";
   for (const auto& row : *rows) {
-    const auto* record = std::get_if<Dataset::Map>(&row.value());
+    const auto* record = cppdatasetutil::get_if<Dataset::Map>(&row.value());
     if (!record || record->size() != header->size())
       throw std::runtime_error("CSV records must have identical keys");
     first = true;
@@ -708,7 +717,8 @@ std::string SaveCsv(const Dataset& data) {
       const auto it = record->find(entry.first);
       if (it == record->end())
         throw std::runtime_error("CSV records must have identical keys");
-      const auto* value = std::get_if<std::string>(&it->second.value());
+      const auto* value =
+          cppdatasetutil::get_if<std::string>(&it->second.value());
       if (!value) throw std::runtime_error("CSV fields must be strings");
       if (!first) result += ',';
       result += CsvField(*value, header->size() == 1);
@@ -723,11 +733,13 @@ std::string SaveCsv(const Dataset& data) {
 /// nesting limit.
 std::size_t Depth(const Dataset& dataset) {
   std::size_t deepest = 0;
-  if (const auto* array = std::get_if<Dataset::Array>(&dataset.value())) {
+  if (const auto* array =
+          cppdatasetutil::get_if<Dataset::Array>(&dataset.value())) {
     for (const auto& item : *array) deepest = std::max(deepest, Depth(item));
     return deepest + 1;
   }
-  if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+  if (const auto* map =
+          cppdatasetutil::get_if<Dataset::Map>(&dataset.value())) {
     for (const auto& item : *map)
       deepest = std::max(deepest, Depth(item.second));
     return deepest + 1;
@@ -739,9 +751,11 @@ std::size_t Depth(const Dataset& dataset) {
 /// nesting limit.
 std::size_t CountNodes(const Dataset& dataset) {
   std::size_t count = 1;
-  if (const auto* array = std::get_if<Dataset::Array>(&dataset.value())) {
+  if (const auto* array =
+          cppdatasetutil::get_if<Dataset::Array>(&dataset.value())) {
     for (const auto& item : *array) count += CountNodes(item);
-  } else if (const auto* map = std::get_if<Dataset::Map>(&dataset.value())) {
+  } else if (const auto* map =
+                 cppdatasetutil::get_if<Dataset::Map>(&dataset.value())) {
     for (const auto& item : *map) count += CountNodes(item.second);
   }
   return count;
@@ -751,12 +765,15 @@ std::size_t CountNodes(const Dataset& dataset) {
 bool ExceedsDepth(const Dataset& root, std::size_t limit) {
   std::vector<std::pair<const Dataset*, std::size_t>> pending{{&root, 0}};
   while (!pending.empty()) {
-    const auto [node, level] = pending.back();
+    const Dataset* node = pending.back().first;
+    const std::size_t level = pending.back().second;
     pending.pop_back();
-    if (const auto* array = std::get_if<Dataset::Array>(&node->value())) {
+    if (const auto* array =
+            cppdatasetutil::get_if<Dataset::Array>(&node->value())) {
       if (level + 1 > limit) return true;
       for (const auto& item : *array) pending.emplace_back(&item, level + 1);
-    } else if (const auto* map = std::get_if<Dataset::Map>(&node->value())) {
+    } else if (const auto* map =
+                   cppdatasetutil::get_if<Dataset::Map>(&node->value())) {
       if (level + 1 > limit) return true;
       for (const auto& item : *map)
         pending.emplace_back(&item.second, level + 1);
@@ -872,11 +889,30 @@ Dataset YamlScalar(const std::string& text, const std::string& tag,
       offset += 2;
     }
     std::uint64_t magnitude = 0;
-    const auto parsed = std::from_chars(
-        text.data() + offset, text.data() + text.size(), magnitude, base);
+    bool overflow = text.size() == offset;
+    for (std::size_t i = offset; i < text.size() && !overflow; ++i) {
+      const char c = text[i];
+      int digit = -1;
+      if (c >= '0' && c <= '9')
+        digit = c - '0';
+      else if (c >= 'a' && c <= 'f')
+        digit = c - 'a' + 10;
+      else if (c >= 'A' && c <= 'F')
+        digit = c - 'A' + 10;
+      if (digit < 0 || digit >= base) {
+        overflow = true;
+      } else if (magnitude > (std::numeric_limits<std::uint64_t>::max() -
+                              static_cast<std::uint64_t>(digit)) /
+                                 static_cast<std::uint64_t>(base)) {
+        overflow = true;
+      } else {
+        magnitude = magnitude * static_cast<std::uint64_t>(base) +
+                    static_cast<std::uint64_t>(digit);
+      }
+    }
     const auto limit =
         static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
-    if (parsed.ec != std::errc{} || magnitude > limit + (negative ? 1 : 0))
+    if (overflow || magnitude > limit + (negative ? 1 : 0))
       throw std::runtime_error("YAML integer outside int64 range");
     if (negative && magnitude == limit + 1)
       return std::numeric_limits<std::int64_t>::min();
@@ -1138,7 +1174,7 @@ class YamlReader {
     } else {
       throw std::runtime_error("Unsupported YAML node");
     }
-    if (!anchor.empty()) anchors_.insert_or_assign(anchor, result);
+    if (!anchor.empty()) anchors_[anchor] = result;
     return result;
   }
 
@@ -1182,7 +1218,6 @@ Dataset ParseContent(const std::string& content, const std::string& format,
  * Symbolic links are followed and the existing permissions are kept.
  */
 void WriteFileAtomically(const std::string& path, const std::string& content) {
-  namespace fs = std::filesystem;
   std::error_code ec;
   fs::path target = PathFromUtf8(path);
   if (fs::is_symlink(target, ec)) {
@@ -1246,8 +1281,8 @@ void Dataset::Load(const std::string& path) {
 
 std::list<std::pair<std::string, Dataset>> Dataset::LoadDirectory(
     const std::string& path, bool recursive) {
-  std::set<std::filesystem::path> ancestors;
-  std::vector<std::filesystem::path> files;
+  std::set<fs::path> ancestors;
+  std::vector<fs::path> files;
   CollectFiles(PathFromUtf8(path), recursive, true, ancestors, files);
   std::sort(files.begin(), files.end());
   std::list<std::pair<std::string, Dataset>> result;
@@ -1278,7 +1313,7 @@ void Dataset::Save(const std::string& path) const {
     } else if (format == "yaml" || format == "yml") {
       content = SaveYaml(*this);
     } else {
-      if (!std::holds_alternative<Map>(value_))
+      if (!cppdatasetutil::holds_alternative<Map>(value_))
         throw std::runtime_error("TOML requires a root table");
       content = toml::format(ToToml(*this));
     }
