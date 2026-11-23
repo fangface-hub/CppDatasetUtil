@@ -1,7 +1,7 @@
 Name:           cppdatasetutil
 Version:        %{package_version}
 Release:        1%{?dist}
-Summary:        C++ dataset serialization library
+Summary:        C++ dataset serialization library (C++17 build)
 License:        MIT
 Source0:        cppdatasetutil-%{version}.tar.gz
 BuildRequires:  gcc, gcc-c++, make
@@ -9,7 +9,8 @@ BuildRequires:  gcc, gcc-c++, make
 %global debug_package %{nil}
 
 %description
-C++17 library for nested data with CSV, JSON, YAML and TOML serialization.
+Library that reads and writes CSV, JSON, YAML and TOML files as a nested
+data model, built for C++17 or later.
 Includes the shared library, development header, and man page.
 
 %prep

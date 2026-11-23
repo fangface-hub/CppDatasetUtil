@@ -122,4 +122,23 @@ ${CXX:-c++} -std=c++17 -I"$root/usr/include" "$work/consumer.cpp" \
   -L"$root$libdir" -lcppdatasetutil -o "$work/consumer"
 LD_LIBRARY_PATH="$root$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
   "$work/consumer" "$work/consumer.yaml"
+
+rm -rf "$project/dist"
+printf '1.2.3\n' > "$project/VERSION"
+make -C "$project" "$format-cxx11"
+root11=$work/extracted-cxx11
+mkdir -p "$root11"
+if [ "$format" = deb ]; then
+  dpkg-deb -x "$project/dist/cppdatasetutil-cxx11_1.2.3_$(dpkg --print-architecture).deb" "$root11"
+else
+  rpm2cpio "$project"/dist/cppdatasetutil-cxx11-1.2.3-*.rpm > "$work/cxx11.cpio"
+  (cd "$root11" && cpio -id --quiet < "$work/cxx11.cpio")
+fi
+test -f "$root11/usr/include/cppdatasetutil-cxx11/cppdatasetutil.h"
+test -f "$root11/usr/include/cppdatasetutil-cxx11/cppdatasetutil/mpark/variant.hpp"
+test ! -e "$root11/usr/include/cppdatasetutil.h"
+sed 's/std::get</cppdatasetutil::get</' "$work/consumer.cpp" > "$work/consumer11.cpp"
+${CXX:-c++} -std=c++11 -I"$root11/usr/include/cppdatasetutil-cxx11" \
+  "$work/consumer11.cpp" -L"$root11$libdir" -lcppdatasetutil_cxx11 -o "$work/consumer11"
+LD_LIBRARY_PATH="$root11$libdir" "$work/consumer11" "$work/consumer11.yaml"
 echo "$format package test passed"
