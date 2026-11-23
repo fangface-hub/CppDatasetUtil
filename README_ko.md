@@ -7,6 +7,7 @@ C++17 `Dataset`은 null, 불리언, 64비트 정수, double, 문자열, 맵,
 
 ```cpp
 #include "cppdatasetutil.h"
+
 Dataset data;
 data["server"]["host"] = "localhost";
 data["server"]["port"] = 8080;
@@ -74,13 +75,54 @@ HTML을 생성합니다. API man 페이지는 [docs/](docs/)에서 관리합니�
 빌드에는 C 및 C++17 컴파일러가 필요하며 HTML 문서 생성에는 Doxygen이
 필요합니다.
 
+## Windows DLL 및 도움말
+
+Visual Studio 2022 C++ 데스크톱 도구와 CMake를 설치한 뒤 프로젝트
+루트에서 실행합니다.
+
+```powershell
+cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
+cmake --build build-windows --config Release
+ctest --test-dir build-windows -C Release --output-on-failure
+cmake --build build-windows --config Release --target windows_help
+```
+
+DLL과 가져오기 라이브러리는 `build-windows\Release\cppdatasetutil.dll`과
+`cppdatasetutil.lib`입니다. `Include\cppdatasetutil.h`를 포함하고 같은
+아키텍처, 호환되는 MSVC 도구 집합 및 런타임 구성으로 가져오기 라이브러리에
+링크합니다. 실행 시 DLL은 실행 파일과 같은 디렉터리나 Windows DLL 검색
+경로에 두십시오. `CPPDATASETUTIL_BUILD`는 라이브러리를 빌드할 때만 쓰며
+사용하는 쪽에서 정의하면 안 됩니다. `Dataset`은 표준 라이브러리 형식을
+멤버로 가지므로 DLL과 사용하는 쪽은 같은 CRT 종류(`/MD` 또는 `/MT`, Debug
+또는 Release)와 `_ITERATOR_DEBUG_LEVEL`을 사용해야 합니다. 다르면 실행 중
+충돌하는 대신 확인되지 않은 `CppDatasetUtilAbi1_*` 심볼로 링크 단계에서
+오류가 발생합니다. 테스트는 DLL에 링크된 별도의 실행 파일로 실행됩니다.
+Release DLL을 쓰려면 대상 컴퓨터에 호환되는 Microsoft Visual C++
+재배포 가능 패키지도 필요합니다.
+
+`windows_help` 대상은 Microsoft HTML Help Workshop의 `hhc.exe`로
+`build-windows\help\CppDatasetUtil.chm`을 생성합니다. 언어 선택 페이지에서
+영어, 일본어, 독일어, 프랑스어, 이탈리아어, 한국어, 중국어 간체를 고를 수
+있고 각 항목에서 이 페이지로 돌아올 수 있습니다. 컴파일러가 다른 위치에
+있으면 CMake를 `-DHTML_HELP_COMPILER="C:\path\to\hhc.exe"`로 구성하십시오.
+Workshop이 없어도 DLL은 빌드할 수 있지만 도움말 대상은 사용할 수 없습니다.
+도움말 소스는 해당 man 페이지를 바탕으로 한
+[docs/windows/](docs/windows/)에 있습니다. API 참조를 변경할 때는 두 문서를
+함께 갱신하십시오.
+
 ## 데이터 기반 테스트
 
-`Tests/data/`에는 테스트별 하위 디렉터리가 있습니다. `nested-values/`는
-맵 접근용 JSON과 TOML, `array-values/`는 배열 접근용 YAML과 JSON
-케이스를 포함합니다. `server-config/`에는 모델 예제의 케이스가 있습니다.
-각 파일의 `cases` 배열에는 `input`과 `expected`가 있습니다. 예제에서
-사용하는 두 파일은 다음과 같습니다.
+테스트는 `Tests/data/` 아래에 테스트 항목별 하위 디렉터리를 둡니다.
+
+```text
+Tests/data/
+  nested-values/   맵 접근용 JSON·TOML 케이스
+  array-values/    배열 접근용 YAML·JSON 케이스
+  server-config/   모델 예제용 JSON·TOML 케이스
+```
+
+각 파일에는 `cases` 배열이 있으며 각 케이스는 `input`과 `expected` 값을
+가집니다. 예제에서 사용하는 두 파일의 내용은 다음과 같습니다.
 
 `Tests/data/server-config/basic.json`:
 
@@ -179,8 +221,9 @@ make rpm   # rpmbuild, RPM 빌드 도구, tar, C/C++ 도구
 make deb   # dpkg-dev, dpkg-deb, make, C/C++ 도구
 ```
 
-`dist/`의 패키지에는 공유 라이브러리, 헤더, man 페이지와 라이선스가
-포함됩니다. 설치 후 `man 3 CppDataSet`으로 API를 볼 수 있으며 지원되는
+`dist/`의 패키지에는 공유 라이브러리, 개발용 헤더, 영어·일본어·독일어·
+프랑스어·이탈리아어·한국어·중국어 간체 API man 페이지, 프로젝트와 포함된
+의존성의 라이선스가 들어 있습니다. 설치 후 `man 3 CppDataSet`으로 API를 볼 수 있으며 지원되는
 UTF-8 로케일에서는 번역이 자동 선택됩니다. 예를 들어 로케일을 사용할 수
 있으면 `man -L ko_KR.UTF-8 3 CppDataSet`으로 지정할 수 있습니다. 번역은
 [docs/](docs/)에서 관리하며 중국어는 `zh_CN`용입니다. SONAME은
@@ -199,7 +242,9 @@ GitHub Actions의 **Release packages**는 수동 실행하며 기본
 릴리스 태그는 선택한 커밋을 가리켜야 합니다. 태그가 없으면 모든 빌드가
 성공한 후 생성합니다. GitHub 릴리스에는 DEB(Ubuntu 24.04, x86-64),
 RPM(Fedora 44, x86-64), Windows x64 DLL과 CHM이 첨부됩니다.
-Windows SDK ZIP에는 가져오기 라이브러리, 헤더와 라이선스도 포함됩니다.
+Windows SDK ZIP에는 DLL, 가져오기 라이브러리, 헤더, CHM, 라이선스도
+포함됩니다. Windows 작업은 보관된 Microsoft HTML Help Workshop 설치 프로그램을
+내려받아 SHA-256을 확인한 뒤 컴파일러를 추출합니다.
 릴리스 노트에는 선택 커밋의 첫
 번째 부모에서 도달 가능한 가장 가까운 버전 태그 이후의 커밋 제목을,
 해당 태그가 없으면 전체 이력을 기록합니다. 기존 릴리스는 교체하지 않습니다.

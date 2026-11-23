@@ -7,6 +7,7 @@ mappe e array, oltre ai commenti associati ai singoli valori.
 
 ```cpp
 #include "cppdatasetutil.h"
+
 Dataset data;
 data["server"]["host"] = "localhost";
 data["server"]["port"] = 8080;
@@ -77,12 +78,56 @@ il limite.
 Le pagine man API sono gestite in [docs/](docs/). La compilazione richiede
 compilatori C e C++17; la documentazione HTML richiede Doxygen.
 
+## DLL Windows e guida
+
+Con gli strumenti desktop C++ di Visual Studio 2022 e CMake, eseguire dalla
+radice del progetto:
+
+```powershell
+cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
+cmake --build build-windows --config Release
+ctest --test-dir build-windows -C Release --output-on-failure
+cmake --build build-windows --config Release --target windows_help
+```
+
+La DLL e la libreria di importazione sono `build-windows\Release\cppdatasetutil.dll`
+e `cppdatasetutil.lib`. Includere `Include\cppdatasetutil.h` e collegare la
+libreria di importazione con la stessa architettura, un toolset MSVC compatibile
+e la stessa configurazione di runtime. In esecuzione, collocare la DLL accanto
+all'eseguibile o nel percorso di ricerca delle DLL di Windows.
+`CPPDATASETUTIL_BUILD` serve solo a compilare la libreria; i chiamanti non
+devono definirlo. `Dataset` espone membri della libreria standard, quindi la
+DLL e i chiamanti devono usare la stessa variante del CRT (`/MD` o `/MT`, Debug
+o Release) e lo stesso `_ITERATOR_DEBUG_LEVEL`; in caso contrario il link
+fallisce con un simbolo non risolto `CppDatasetUtilAbi1_*` invece di causare un
+arresto anomalo in esecuzione. Il test esegue un eseguibile separato collegato
+alla DLL. La DLL Release richiede anche il Microsoft Visual C++ Redistributable
+compatibile sul computer di destinazione.
+
+Il target `windows_help` usa `hhc.exe` di Microsoft HTML Help Workshop per
+produrre `build-windows\help\CppDatasetUtil.chm`. Nella pagina della lingua si
+sceglie inglese, giapponese, tedesco, francese, italiano, coreano o cinese
+semplificato; ogni argomento rimanda a quella pagina. Se il compilatore è
+installato altrove, configurare CMake con
+`-DHTML_HELP_COMPILER="C:\path\to\hhc.exe"`. Senza il Workshop la DLL può
+essere compilata, ma il target della guida non è disponibile. I sorgenti della
+guida sono in [docs/windows/](docs/windows/) e derivano dalle pagine man
+corrispondenti. Mantenere sincronizzati entrambi i set di documentazione quando
+si modifica il riferimento API.
+
 ## Test basati sui dati
 
-In `Tests/data/` ogni test ha una sottodirectory: `nested-values/` contiene
-casi JSON e TOML per le mappe, `array-values/` casi YAML e JSON per gli array.
-`server-config/` contiene i casi del modello. Ogni file contiene un array
-`cases` con `input` ed `expected`. I due file dell'esempio:
+I test usano una sottodirectory per elemento di test in `Tests/data/`:
+
+```text
+Tests/data/
+  nested-values/   casi JSON e TOML per l'accesso alle mappe
+  array-values/    casi YAML e JSON per l'accesso agli array
+  server-config/   casi JSON e TOML per il modello di esempio
+```
+
+Ogni file contiene un array `cases`. Ogni caso ha un valore `input` e un valore
+`expected`. I due file usati dall'esempio contengono:
 
 `Tests/data/server-config/basic.json`:
 
@@ -180,7 +225,10 @@ make rpm   # rpmbuild, strumenti RPM, tar, strumenti C/C++
 make deb   # dpkg-dev, dpkg-deb, make, strumenti C/C++
 ```
 
-I pacchetti in `dist/` contengono libreria, header, pagine man e licenze.
+I pacchetti in `dist/` contengono la libreria condivisa, l'header di sviluppo, le
+pagine man dell'API in inglese, giapponese, tedesco, francese, italiano,
+coreano e cinese semplificato, e le licenze del progetto e delle dipendenze
+incluse.
 Dopo l'installazione, `man 3 CppDataSet` mostra il riferimento API. Con una locale
 UTF-8 supportata viene scelta automaticamente la traduzione, ad esempio con
 `man -L it_IT.UTF-8 3 CppDataSet`. Le traduzioni sono gestite in [docs/](docs/);
@@ -200,8 +248,10 @@ e deve trovarsi nel branch predefinito. Il branch o tag scelto fornisce
 alla versione; un tag di release esistente deve puntare al commit scelto. Se
 manca, viene creato dopo la riuscita di tutte le compilazioni. La release GitHub
 contiene DEB (Ubuntu 24.04, x86-64), RPM (Fedora 44, x86-64), DLL e CHM
-Windows x64. Uno ZIP SDK Windows include anche libreria di importazione, header
-e licenze. Le note
+Windows x64. Uno ZIP SDK Windows include anche DLL, libreria di importazione, header,
+CHM e licenze.
+Il job Windows scarica il programma di installazione archiviato di Microsoft
+HTML Help Workshop e ne verifica lo SHA-256 prima di estrarre il compilatore. Le note
 contengono gli oggetti dei commit dal tag di versione più vicino raggiungibile
 dal primo genitore, oppure tutta la cronologia se non esiste. Una release
 esistente non viene sostituita.

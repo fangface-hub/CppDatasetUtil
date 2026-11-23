@@ -96,16 +96,17 @@ cmake --build build-windows --config Release --target windows_help
 ```
 
 The DLL and import library are `build-windows\Release\cppdatasetutil.dll` and
-`cppdatasetutil.lib`. Include `Include\cppdatasetutil.h` and link the import library
-using the same architecture and a compatible MSVC toolset and runtime
+`cppdatasetutil.lib`. Include `Include\cppdatasetutil.h` and link the import
+library using the same architecture and a compatible MSVC toolset and runtime
 configuration. Put the DLL next to the executable or on the Windows DLL
 search path at runtime. `CPPDATASETUTIL_BUILD` is for building the library
-only; consumers must not define it. `Dataset` exposes standard library members, so the
-DLL and its consumers must use the same CRT flavor (`/MD` or `/MT`, Debug or
-Release) and `_ITERATOR_DEBUG_LEVEL`; a mismatch fails at link time with an
-unresolved `CppDatasetUtilAbi1_*` symbol instead of crashing at run time. The test runs a separate DLL-linked
-consumer executable. The Release DLL also requires the compatible Microsoft
-Visual C++ Redistributable on the target machine.
+only; consumers must not define it. `Dataset` exposes standard library members,
+so the DLL and its consumers must use the same CRT flavor (`/MD` or `/MT`,
+Debug or Release) and `_ITERATOR_DEBUG_LEVEL`; a mismatch fails at link time
+with an unresolved `CppDatasetUtilAbi1_*` symbol instead of crashing at run
+time. The test runs a separate DLL-linked consumer executable. The Release DLL
+also requires the compatible Microsoft Visual C++ Redistributable on the
+target machine.
 
 The `windows_help` target uses Microsoft HTML Help Workshop's `hhc.exe` to
 produce `build-windows\help\CppDatasetUtil.chm`. Choose English, Japanese,
@@ -213,6 +214,7 @@ TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
 }
 ```
 
+[Tests/DatasetTest.cpp](Tests/DatasetTest.cpp) contains more examples.
 `LoadDirectory` skips unreadable files, so verify the expected file count or
 check its warnings to avoid silently missing cases. The project's tests check
 for warnings and empty files. Run them with `make test` from the project root.

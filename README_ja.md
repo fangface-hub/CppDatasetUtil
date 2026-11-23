@@ -211,6 +211,7 @@ TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
 }
 ```
 
+[Tests/DatasetTest.cpp](Tests/DatasetTest.cpp) に他の例があります。
 `LoadDirectory` は読み込めないファイルをスキップするため、ケースの欠落を
 見逃さないよう、想定ファイル数または警告を確認してください。本プロジェクトの
 テストは警告や空のケースを検出します。プロジェクトルートで `make test` を

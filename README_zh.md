@@ -7,6 +7,7 @@ C++17 `Dataset` 可保存 null、布尔值、64 位整数、double、字符串�
 
 ```cpp
 #include "cppdatasetutil.h"
+
 Dataset data;
 data["server"]["host"] = "localhost";
 data["server"]["port"] = 8080;
@@ -66,12 +67,48 @@ TOML 会被拒绝，`Save` 也会拒绝嵌套超过限制的值。
 [docs/](docs/) 中维护。构建需要 C 和 C++17 编译器；生成 HTML 文档需要
 Doxygen。
 
+## Windows DLL 和帮助
+
+安装 Visual Studio 2022 的 C++ 桌面开发工具和 CMake 后，在项目根目录运行：
+
+```powershell
+cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
+cmake --build build-windows --config Release
+ctest --test-dir build-windows -C Release --output-on-failure
+cmake --build build-windows --config Release --target windows_help
+```
+
+DLL 和导入库为 `build-windows\Release\cppdatasetutil.dll` 和
+`cppdatasetutil.lib`。请包含 `Include\cppdatasetutil.h`，并使用相同架构、
+兼容的 MSVC 工具集和运行时配置链接导入库。运行时将 DLL 放在可执行文件旁或
+Windows DLL 搜索路径中。`CPPDATASETUTIL_BUILD` 仅用于构建库，调用方不得定义。
+`Dataset` 的成员使用标准库类型，因此 DLL 与调用方必须使用相同的 CRT 类型
+（`/MD` 或 `/MT`，Debug 或 Release）和 `_ITERATOR_DEBUG_LEVEL`；不一致时会在
+链接阶段因未解析的 `CppDatasetUtilAbi1_*` 符号而报错，而不是在运行时崩溃。
+测试会运行一个单独的、链接到 DLL 的可执行文件。Release DLL 还要求目标机器
+安装兼容的 Microsoft Visual C++ Redistributable。
+
+`windows_help` 目标使用 Microsoft HTML Help Workshop 的 `hhc.exe` 生成
+`build-windows\help\CppDatasetUtil.chm`。可在语言页面选择英语、日语、德语、
+法语、意大利语、韩语或简体中文；每个主题都可返回该页面。如果编译器安装在
+其他位置，请使用 `-DHTML_HELP_COMPILER="C:\path\to\hhc.exe"` 配置 CMake。
+没有 Workshop 时仍可构建 DLL，但帮助目标不可用。帮助源文件位于
+[docs/windows/](docs/windows/)，基于对应的 man 页面。修改 API 参考时请同步
+更新两套文档。
+
 ## 数据驱动测试
 
-`Tests/data/` 为每个测试项目提供子目录：`nested-values/` 包含映射访问的
-JSON 和 TOML 测试用例，`array-values/` 包含数组访问的 YAML 和 JSON
-测试用例，`server-config/` 包含模型示例的用例。每个文件的 `cases`
-数组包含 `input` 和 `expected`。示例使用的两个文件如下：
+测试在 `Tests/data/` 下为每个测试项目使用一个子目录：
+
+```text
+Tests/data/
+  nested-values/   映射访问的 JSON 和 TOML 用例
+  array-values/    数组访问的 YAML 和 JSON 用例
+  server-config/   模型示例的 JSON 和 TOML 用例
+```
+
+每个文件包含一个 `cases` 数组，每个用例都有 `input` 和 `expected` 值。
+示例使用的两个文件内容如下：
 
 `Tests/data/server-config/basic.json`:
 
@@ -168,7 +205,8 @@ make rpm   # rpmbuild、RPM 构建工具、tar、C/C++ 工具
 make deb   # dpkg-dev、dpkg-deb、make、C/C++ 工具
 ```
 
-`dist/` 中的软件包包含共享库、开发头文件、man 页面和许可证。安装后可通过
+`dist/` 中的软件包包含共享库、开发头文件、英语、日语、德语、法语、意大利语、
+韩语和简体中文的 API man 页面，以及项目和内置依赖的许可证。安装后可通过
 `man 3 CppDataSet` 查看 API；在支持的 UTF-8 区域设置下会自动选择对应翻译，
 例如区域设置可用时可使用 `man -L zh_CN.UTF-8 3 CppDataSet`。翻译在
 [docs/](docs/) 中维护；中文针对 `zh_CN`。SONAME 为
@@ -186,7 +224,8 @@ GitHub Actions 的 **Release packages** 工作流需要手动运行，且必须
 所选标签必须与版本匹配；已有发布标签必须指向所选提交。如果标签不存在，
 将在所有构建成功后创建。GitHub Release 包含 DEB（Ubuntu 24.04、
 x86-64）、RPM（Fedora 44、x86-64）及 Windows x64 DLL 和 CHM。
-Windows SDK ZIP 还包含导入库、头文件和许可证。发布说明包含从所选提交的第一父
+Windows SDK ZIP 还包含 DLL、导入库、头文件、CHM 和许可证。Windows 作业会下载已归档的 Microsoft HTML Help Workshop 安装程序，
+并在提取编译器之前验证其 SHA-256。发布说明包含从所选提交的第一父
 提交可到达的最近版本标签之后的提交标题；如果没有该标签则包含完整历史。
 已有 Release 不会被替换。
 
