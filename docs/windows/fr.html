@@ -13,7 +13,7 @@ CppDataSet - valeur Dataset récursive avec commentaires facultatifs
 </p>
 <h2>SYNOPSIS</h2>
 <pre>
-<b>#include &lt;Dataset.h&gt;</b>
+<b>#include &lt;cppdatasetutil.h&gt;</b>
 <b>class Dataset;</b>
 </pre>
 <h2>DESCRIPTION</h2>
@@ -36,6 +36,12 @@ crée null sans commentaire. Les constructeurs acceptent nullptr, bool, int,
 std::int64_t, double, const char*, std::string, Map et Array. Un pointeur
 null pour const char* provoque std::invalid_argument.
 </p>
+<p>
+Tout autre type entier, comme long long, std::size_t ou unsigned, est stocké
+comme entier signé 64 bits ; une valeur non signée au-delà de la plage int64
+provoque std::out_of_range. Les pointeurs autres que const char* sont
+rejetés à la compilation au lieu de devenir bool.
+</p>
 <h2>ACCÈS</h2>
 <p>
 <b>operator[](const std::string&amp; key)</b>
@@ -56,6 +62,41 @@ std::out_of_range. Remplacer le Dataset parent invalide les références
 <b>value() const noexcept</b>
 Renvoie une référence const à Value. Si le type ne correspond pas,
 std::get lève std::bad_variant_access et std::get_if renvoie un pointeur null.
+</p>
+<p>
+<b>size() const noexcept</b>
+Renvoie le nombre d'entrées d'une table ou d'un tableau, et 0 pour toute
+autre valeur.
+</p>
+<p>
+<b>contains(const std::string&amp; key) const noexcept</b>
+Renvoie true si la valeur est une table contenant key.
+</p>
+<p>
+<b>push_back(Dataset value)</b>
+Ajoute un élément à un tableau. Une valeur null devient d'abord un tableau
+vide et conserve ses commentaires. Tout autre type provoque
+std::logic_error.
+</p>
+<p>
+<b>erase(const std::string&amp; key)</b>
+Supprime une entrée de table et indique si elle existait. Un type autre
+qu'une table provoque std::logic_error.
+</p>
+<p>
+<b>erase(std::size_t index)</b>
+Supprime un élément de tableau et décale les suivants. Un autre type
+provoque std::logic_error, un indice hors limites std::out_of_range.
+</p>
+<p>
+<b>value() noexcept</b>
+Renvoie une référence modifiable à Value. Affecter une autre alternative
+remplace la valeur et conserve les commentaires.
+</p>
+<p>
+<b>operator==, operator!=</b>
+Comparent récursivement valeurs et commentaires. Un NaN n'est jamais égal à
+lui-même.
 </p>
 <h2>COMMENTAIRES</h2>
 <p>
@@ -81,6 +122,15 @@ d'échec, le Dataset reste inchangé. Les erreurs d'E/S, les entrées invalides
 et les extensions ou valeurs non prises en charge provoquent std::runtime_error.
 </p>
 <p>
+<b>static Parse(const std::string&amp; text, const std::string&amp; format = "json")</b>
+Analyse du texte CSV, JSON, YAML ou TOML. format est un nom insensible à la
+casse : csv, json, yaml, yml ou toml (json par défaut). Les règles, dont la
+limite d'imbrication, sont celles de Load, sans commentaires. Elle permet de
+développer la chaîne conservée pour une valeur imbriquée au-delà de la
+limite. Une entrée invalide ou un format non pris en charge provoque
+std::runtime_error.
+</p>
+<p>
 <b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
 Renvoie une std::list de paires chemin et Dataset, triée par chemin.
 Les sous-répertoires ne sont parcourus que si recursive=true. Les extensions
@@ -98,9 +148,9 @@ Enregistre selon l'extension. CSV exige un tableau de tables non vides ayant
 les mêmes clés et des valeurs chaîne ; un tableau vide produit un fichier
 vide. La racine TOML doit être une table et null n'est pas pris en charge.
 Les nombres flottants non finis ne peuvent pas être enregistrés. YAML et TOML
-enregistrent les commentaires représentables. La sérialisation précède
-l'ouverture, mais une erreur d'écriture peut laisser un fichier tronqué ou
-incomplet. Les erreurs d'E/S, extensions non prises en charge et valeurs ou
+enregistrent les commentaires représentables. Le contenu est écrit dans un fichier temporaire puis renommé sur la cible ;
+une erreur d'écriture laisse donc intact tout fichier existant. Les liens
+symboliques sont suivis et les permissions conservées. Les erreurs d'E/S, extensions non prises en charge et valeurs ou
 commentaires non représentables provoquent std::runtime_error.
 </p>
 <p>
@@ -111,9 +161,29 @@ pris en charge et rejette plusieurs documents, les ancres répétées, les alias
 récursifs et les balises non prises en charge. Les dates, heures et nombres
 non finis TOML ne sont pas chargés.
 </p>
+<p>
+Au chargement d'un CSV, un BOM UTF-8 initial et les lignes vides sont
+ignorés ; une valeur vide dans un fichier à une seule colonne est
+enregistrée sous la forme "" afin de conserver l'enregistrement. Les
+chemins de fichiers sont des std::string en UTF-8 sur toutes les
+plateformes, Windows compris, et les noms renvoyés par LoadDirectory sont
+aussi en UTF-8. Avec la DLL Windows, la variante de CRT (/MD ou /MT, Debug
+ou Release) et _ITERATOR_DEBUG_LEVEL de l'appelant doivent correspondre à
+la DLL ; sinon l'édition de liens échoue avec un symbole non résolu
+CppDatasetUtilAbi1_*.
+</p>
+<p>
+Les tables et tableaux imbriqués au-delà de Dataset::kMaxNestingDepth (256)
+ne sont pas chargés sous forme d'arbre. Chacun est conservé comme chaîne
+contenant son texte JSON compact, que Parse reconvertit. Les ancres YAML ne
+peuvent pas être définies dans ces valeurs, un TOML imbriqué deux fois plus
+profondément est rejeté et Save refuse les valeurs au-delà de la limite. Les
+alias YAML se développant en plus de 1 000 000 de valeurs au total sont des
+erreurs.
+</p>
 <h2>EXEMPLE</h2>
 <pre>
-#include &lt;Dataset.h&gt;
+#include &lt;cppdatasetutil.h&gt;
 #include &lt;string&gt;
 #include &lt;variant&gt;
 Dataset data;
@@ -169,7 +239,7 @@ enabled = false
 #include &lt;variant&gt;
 
 #include &lt;gtest/gtest.h&gt;
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

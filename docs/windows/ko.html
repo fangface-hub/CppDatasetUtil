@@ -13,7 +13,7 @@ CppDataSet - 선택적인 주석을 가진 재귀적 Dataset 값
 </p>
 <h2>사용법</h2>
 <pre>
-<b>#include &lt;Dataset.h&gt;</b>
+<b>#include &lt;cppdatasetutil.h&gt;</b>
 <b>class Dataset;</b>
 </pre>
 <h2>설명</h2>
@@ -31,6 +31,11 @@ std::vector&lt;Dataset&gt;, Dataset::Value는 지원 타입의 std::variant입�
 std::int64_t, double, const char*, std::string, Map, Array로도 생성할
 수 있습니다. const char*에 null 포인터를 전달하면
 std::invalid_argument가 발생합니다.
+</p>
+<p>
+long long, std::size_t, unsigned 등 그 밖의 정수 타입은 부호 있는 64비트 정수로 저장됩니다. int64
+범위를 넘는 부호 없는 값은 std::out_of_range를 발생시킵니다. const char*가 아닌 포인터는 bool로 변환되지
+않고 컴파일 시 거부됩니다.
 </p>
 <h2>접근</h2>
 <p>
@@ -50,6 +55,36 @@ std::invalid_argument가 발생합니다.
 <b>value() const noexcept</b>
 Value에 대한 const 참조를 반환합니다. 타입이 다르면 std::get은
 std::bad_variant_access를 발생시키고 std::get_if는 null 포인터를 반환합니다.
+</p>
+<p>
+<b>size() const noexcept</b>
+맵 또는 배열의 항목 수를 반환하며 다른 값에는 0을 반환합니다.
+</p>
+<p>
+<b>contains(const std::string&amp; key) const noexcept</b>
+값이 key를 포함한 맵이면 true를 반환합니다.
+</p>
+<p>
+<b>push_back(Dataset value)</b>
+배열 끝에 요소를 추가합니다. null이면 먼저 빈 배열로 변환하며 주석은 유지됩니다. 그 밖의 타입은 std::logic_error가
+발생합니다.
+</p>
+<p>
+<b>erase(const std::string&amp; key)</b>
+맵 항목을 제거하고 존재했는지 반환합니다. 맵이 아니면 std::logic_error가 발생합니다.
+</p>
+<p>
+<b>erase(std::size_t index)</b>
+배열 요소를 제거하고 뒤의 요소를 앞으로 당깁니다. 배열이 아니면 std::logic_error, 범위를 벗어나면
+std::out_of_range가 발생합니다.
+</p>
+<p>
+<b>value() noexcept</b>
+Value에 대한 변경 가능한 참조를 반환합니다. 다른 타입의 값을 대입하면 값이 교체되고 주석은 유지됩니다.
+</p>
+<p>
+<b>operator==, operator!=</b>
+값과 주석을 재귀적으로 비교합니다. NaN은 자기 자신과도 같지 않습니다.
 </p>
 <h2>주석</h2>
 <p>
@@ -73,6 +108,13 @@ CSV, JSON, YAML, TOML을 선택해 읽습니다. 주석은 읽지 않습니다. 
 잘못된 입력, 지원하지 않는 확장자 또는 값은 std::runtime_error를 발생시킵니다.
 </p>
 <p>
+<b>static Parse(const std::string&amp; text, const std::string&amp; format = "json")</b>
+CSV, JSON, YAML, TOML 텍스트를 해석합니다. format은 대소문자를 구별하지 않는 csv, json, yaml,
+yml, toml이며 기본값은 json입니다. 중첩 한도를 포함해 Load와 같은 규칙을 따르며 주석은 읽지 않습니다. 한도보다 깊게
+중첩된 값으로 유지된 문자열을 펼칠 때 사용합니다. 잘못된 입력이나 지원하지 않는 형식은 std::runtime_error를
+발생시킵니다.
+</p>
+<p>
 <b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
 경로와 Dataset 쌍을 경로순 std::list로 반환합니다. recursive=true일
 때만 하위 디렉터리를 탐색하며 지원하지 않는 확장자는 무시합니다.
@@ -88,8 +130,8 @@ CSV, JSON, YAML, TOML을 선택해 읽습니다. 주석은 읽지 않습니다. 
 않은 맵의 배열이 필요하며 빈 배열은 빈 파일로 저장합니다. TOML의
 루트는 맵이어야 하고 null은 지원하지 않습니다. 유한하지 않은 실수는
 저장할 수 없습니다. YAML과 TOML은 표현 가능한 주석을 저장합니다.
-파일을 열기 전에 직렬화하지만 쓰기 중 입출력 오류가 발생하면 파일이
-잘리거나 불완전하게 남을 수 있습니다. 입출력 오류, 지원하지 않는
+내용은 임시 파일에 쓴 뒤 대상 이름으로 바꾸므로 쓰기 오류가 발생해도
+기존 파일은 변경되지 않습니다. 심볼릭 링크를 따라가며 권한은 유지됩니다. 입출력 오류, 지원하지 않는
 확장자, 표현할 수 없는 값이나 주석은 std::runtime_error를 발생시킵니다.
 </p>
 <p>
@@ -98,9 +140,22 @@ CSV는 첫 줄을 열 이름으로 사용하고 이후 각 줄을 문자열 맵�
 스칼라를 해석하고 여러 문서, 중복 앵커, 재귀 별칭 및 미지원 태그를
 거부합니다. TOML의 날짜 및 시간 값과 유한하지 않은 수는 읽을 수 없습니다.
 </p>
+<p>
+CSV를 읽을 때 맨 앞의 UTF-8 BOM과 빈 줄은 무시합니다. 한 열짜리 파일의 빈 값은 레코드가 사라지지 않도록 ""로
+저장합니다. 파일 경로는 Windows를 포함한 모든 플랫폼에서 UTF-8 std::string으로 처리되며 LoadDirectory가
+반환하는 이름도 UTF-8입니다. Windows DLL에서는 사용하는 쪽의 CRT 종류(/MD 또는 /MT, Debug 또는
+Release)와 _ITERATOR_DEBUG_LEVEL이 DLL과 같아야 하며, 다르면 확인되지 않은
+CppDatasetUtilAbi1_* 심볼로 링크 단계에서 오류가 납니다.
+</p>
+<p>
+Dataset::kMaxNestingDepth(256)보다 깊게 중첩된 맵과 배열은 트리로 읽지 않습니다. 해당 값은 간결한 JSON
+텍스트를 담은 문자열로 유지되며 Parse로 변환할 수 있습니다. 이러한 값 내부에서는 YAML 앵커를 정의할 수 없고, 한도의 2배를
+넘는 TOML은 거부되며, Save는 한도를 넘는 값을 거부합니다. 전체 1,000,000개를 넘는 값으로 확장되는 YAML 별칭은
+오류입니다.
+</p>
 <h2>예제</h2>
 <pre>
-#include &lt;Dataset.h&gt;
+#include &lt;cppdatasetutil.h&gt;
 #include &lt;string&gt;
 #include &lt;variant&gt;
 Dataset data;
@@ -156,7 +211,7 @@ enabled = false
 #include &lt;variant&gt;
 
 #include &lt;gtest/gtest.h&gt;
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

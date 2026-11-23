@@ -1,17 +1,19 @@
 /**
- * @file Dataset.h
+ * @file cppdatasetutil.h
  * @brief Recursive data model and file format serialization.
  */
 
-#ifndef CPPDATASETUTIL_INCLUDE_DATASET_H_
-#define CPPDATASETUTIL_INCLUDE_DATASET_H_
+#ifndef CPPDATASETUTIL_INCLUDE_CPPDATASETUTIL_H_
+#define CPPDATASETUTIL_INCLUDE_CPPDATASETUTIL_H_
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <list>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -24,6 +26,47 @@
 #endif
 #else
 #define CPPDATASETUTIL_API
+#endif
+
+#if defined(_MSC_VER)
+/*
+ * Dataset exposes standard library members, so the DLL and its consumers must
+ * agree on the CRT flavor and iterator debug level. The DLL exports one marker
+ * symbol per combination and every consumer references the marker matching its
+ * own settings, turning a mismatch into a link error instead of a crash.
+ */
+#if defined(_DLL)
+#define CPPDATASETUTIL_ABI_CRT_ Dll
+#else
+#define CPPDATASETUTIL_ABI_CRT_ Static
+#endif
+#if defined(_DEBUG)
+#define CPPDATASETUTIL_ABI_CONFIG_ Debug
+#else
+#define CPPDATASETUTIL_ABI_CONFIG_ Release
+#endif
+#if _ITERATOR_DEBUG_LEVEL == 0
+#define CPPDATASETUTIL_ABI_IDL_ Idl0
+#elif _ITERATOR_DEBUG_LEVEL == 1
+#define CPPDATASETUTIL_ABI_IDL_ Idl1
+#else
+#define CPPDATASETUTIL_ABI_IDL_ Idl2
+#endif
+#define CPPDATASETUTIL_ABI_JOIN2_(a, b, c, d) a##_##b##_##c##_##d
+#define CPPDATASETUTIL_ABI_JOIN_(a, b, c, d) \
+  CPPDATASETUTIL_ABI_JOIN2_(a, b, c, d)
+#define CPPDATASETUTIL_ABI_SYMBOL                                       \
+  CPPDATASETUTIL_ABI_JOIN_(CppDatasetUtilAbi1, CPPDATASETUTIL_ABI_CRT_, \
+                           CPPDATASETUTIL_ABI_CONFIG_,                  \
+                           CPPDATASETUTIL_ABI_IDL_)
+extern "C" CPPDATASETUTIL_API const int CPPDATASETUTIL_ABI_SYMBOL;
+#if !defined(CPPDATASETUTIL_BUILD)
+namespace cppdatasetutil_detail {
+inline const int kAbiMarker = CPPDATASETUTIL_ABI_SYMBOL;
+}  // namespace cppdatasetutil_detail
+#endif
+#pragma warning(push)
+#pragma warning(disable : 4251)
 #endif
 
 /**
@@ -67,6 +110,14 @@ class CPPDATASETUTIL_API Dataset {
   using Value = std::variant<std::nullptr_t, bool, std::int64_t, double,
                              std::string, Map, Array>;
 
+  /**
+   * @brief Maximum number of nested maps and arrays loaded or saved.
+   *
+   * Loading keeps any map or array nested deeper than this as a string holding
+   * its compact JSON text, which Parse() converts back to a Dataset.
+   */
+  static constexpr std::size_t kMaxNestingDepth = 256;
+
   /// Construct a null value with no comments.
   Dataset() = default;
   /// Construct a null value.
@@ -77,6 +128,25 @@ class CPPDATASETUTIL_API Dataset {
   Dataset(int value);
   /// Construct a signed 64-bit integer from @p value.
   Dataset(std::int64_t value);
+  /**
+   * @brief Construct a signed 64-bit integer from any other integer type.
+   * @param value Integer to store, such as `long long`, `std::size_t`, or
+   *     `unsigned`.
+   * @throws std::out_of_range if an unsigned @p value exceeds the int64 range.
+   */
+  template <typename T,
+            std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>,
+                             int> = 0>
+  Dataset(T value) {
+    if constexpr (std::is_unsigned_v<T>) {
+      if (value >
+          static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+        throw std::out_of_range("Integer outside int64 range");
+    }
+    value_ = static_cast<std::int64_t>(value);
+  }
+  /// Pointers other than strings are rejected rather than converted to bool.
+  Dataset(const void*) = delete;
   /// Construct a floating-point value from @p value; it is not range-checked.
   Dataset(double value);
   /**
@@ -131,6 +201,50 @@ class CPPDATASETUTIL_API Dataset {
   const Dataset& operator[](std::size_t index) const;
 
   /**
+   * @brief Count the entries of a map or array.
+   * @return Number of entries, or 0 if this value is neither.
+   */
+  std::size_t size() const noexcept;
+  /**
+   * @brief Check whether a map contains a key.
+   * @param key Entry name.
+   * @return True if this value is a map with @p key; false otherwise.
+   */
+  bool contains(const std::string& key) const noexcept;
+  /**
+   * @brief Append an element to an array.
+   * @param value Element to add, including its comments.
+   *
+   * If this value is null, it is first converted to an empty array. Comments
+   * associated with this value are retained. Growing the array invalidates
+   * references to its elements.
+   * @throws std::logic_error if this value is neither null nor an array.
+   */
+  void push_back(Dataset value);
+  /**
+   * @brief Remove a map entry.
+   * @param key Entry name.
+   * @return True if the entry existed and was removed.
+   * @throws std::logic_error if this value is not a map.
+   */
+  bool erase(const std::string& key);
+  /**
+   * @brief Remove an array element, shifting later elements down.
+   * @param index Zero-based element index.
+   * @throws std::logic_error if this value is not an array.
+   * @throws std::out_of_range if @p index is outside the array.
+   */
+  void erase(std::size_t index);
+  /**
+   * @brief Compare values and comments, recursively.
+   *
+   * Doubles follow IEEE comparison, so a NaN is never equal to itself.
+   */
+  bool operator==(const Dataset& other) const;
+  /// Negation of operator==.
+  bool operator!=(const Dataset& other) const;
+
+  /**
    * @brief Inspect the underlying variant.
    * @return Const reference to the value; use std::get or std::get_if to
    *     inspect the selected type.
@@ -139,6 +253,12 @@ class CPPDATASETUTIL_API Dataset {
    * returns null instead. Replacing the Dataset changes the referenced value.
    */
   const Value& value() const noexcept;
+  /**
+   * @brief Modify the underlying variant.
+   * @return Mutable reference to the value; assigning a new alternative
+   *     replaces the value but keeps the comments.
+   */
+  Value& value() noexcept;
 
   /**
    * @brief Inspect comments associated with this value.
@@ -166,8 +286,13 @@ class CPPDATASETUTIL_API Dataset {
    * CSV is loaded as an array of string-valued maps using the first row as
    * column names; duplicate headers and inconsistent row lengths are errors.
    * YAML resolves supported core scalar types and rejects multiple documents,
-   * duplicate anchors, recursive aliases, and unsupported tags. TOML
+   * duplicate anchors, recursive aliases, aliases that expand to more than
+   * 1,000,000 values in total, and unsupported tags. TOML
    * date/time values and non-finite numbers are unsupported.
+   * Maps and arrays nested deeper than kMaxNestingDepth are kept as strings
+   * holding their compact JSON text (see Parse()); TOML nested more than
+   * twice that deep is rejected. YAML anchors cannot be defined inside such
+   * deeply nested values.
    * Comments are not loaded; a successful load replaces the value and its
    * existing comments. On failure this Dataset is left unchanged.
    *
@@ -176,6 +301,23 @@ class CPPDATASETUTIL_API Dataset {
    * @see README.md for further format restrictions.
    */
   void Load(const std::string& path);
+
+  /**
+   * @brief Parse CSV, JSON, YAML, or TOML text.
+   * @param text Complete document text.
+   * @param format Case-insensitive format name: `csv`, `json`, `yaml`, `yml`,
+   *     or `toml`. Defaults to `json`.
+   * @return The parsed value, without comments.
+   *
+   * Follows the same rules as Load(), including the nesting limit. Use this
+   * to expand a string holding the JSON text of a subtree that Load() kept
+   * because it was nested deeper than kMaxNestingDepth.
+   *
+   * @throws std::runtime_error on invalid input, an unsupported format, or
+   *     values that the data model cannot represent.
+   */
+  static Dataset Parse(const std::string& text,
+                       const std::string& format = "json");
 
   /**
    * @brief Load supported files from a directory.
@@ -204,9 +346,12 @@ class CPPDATASETUTIL_API Dataset {
    * CSV requires an array of nonempty string-valued maps with identical keys;
    * an empty array produces an empty file. TOML requires a root map and does
    * not support null. Non-finite doubles cannot be saved. YAML and TOML save
-   * comments where supported; CSV and JSON do not. Serialization is performed
-   * before opening the file, but an I/O failure during writing may leave it
-   * truncated or incomplete.
+   * comments where supported; CSV and JSON do not. Values nested deeper than
+   * kMaxNestingDepth cannot be saved. The content is written to a
+   * temporary file in the same directory and renamed over the target, so an
+   * I/O failure leaves any existing file unchanged. Symbolic links are
+   * followed and existing permissions are kept; the directory must be
+   * writable.
    *
    * @throws std::runtime_error on I/O errors, an unsupported extension, or
    *     values or comments that the format cannot represent.
@@ -219,4 +364,8 @@ class CPPDATASETUTIL_API Dataset {
   std::vector<std::string> comments_;
 };
 
-#endif  // CPPDATASETUTIL_INCLUDE_DATASET_H_
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+#endif  // CPPDATASETUTIL_INCLUDE_CPPDATASETUTIL_H_

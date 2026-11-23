@@ -6,7 +6,7 @@ C++17 の `Dataset` は null、真偽値、64 ビット整数、double、文字�
 マップ、配列と、値に関連付けられたコメントを保持します。
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 Dataset data;
 data["server"]["host"] = "localhost";
@@ -41,7 +41,8 @@ for (const auto& [path, dataset] : Dataset::LoadDirectory("configs", true)) {
 YAML (`.yaml`, `.yml`)、TOML を選択します。エラー時は
 `std::runtime_error` を送出し、読み込みに失敗した場合は元の Dataset を
 変更しません。コメントは YAML / TOML に保存されます。読み込みには対応して
-いないため、読み込み成功時には消去されます。CSV / JSON には保存されません。
+いないため、読み込み成功時には消去されます。CSV / JSON には保存されません。ファイルパスは Windows を含む全プラットフォームで
+UTF-8 の `std::string` として扱われ、`LoadDirectory` が返す名前も UTF-8 です。
 
 コメントは行頭に `#` を付けずに設定し、値の前に `# ` を付けて出力
 します。改行を含む文字列は複数のコメント行に分割します。コメントには有効な
@@ -53,15 +54,24 @@ UTF-8 を使用し、タブ・改行以外の制御文字や Unicode の行区�
   列名や列数の異なる行はエラーです。保存時は全行が同じキーを持つ、空でない
   マップで、値は文字列である必要があります。列順はキーの辞書順です。
   空ファイルとヘッダーのみのファイルは空配列になり、空配列は空ファイルに
-  保存されます（ヘッダーのみの列名は保持されません）。
+  保存されます（ヘッダーのみの列名は保持されません）。読み込み時は先頭の
+  UTF-8 BOM と空行を無視します。1 列のファイルの空値は、レコードが失われない
+  よう `""` として保存されます。
 - JSON: null、真偽値、符号付き 64 ビット整数、有限の浮動小数点数、
   文字列、配列、オブジェクトに対応します。
 - YAML: JSON と同じ値に対応し、YAML 1.2 の基本的なスカラー型を解決します。
   マップのキーはスカラー文字列として扱います。複数文書、重複アンカー、
-  再帰的な別名、未対応のタグはエラーです。保存はフロー形式で行い、
+  再帰的な別名、合計 1,000,000 個を超える値に展開される別名、
+  未対応のタグはエラーです。保存はフロー形式で行い、
   コメントがなければ従来どおり JSON 互換の構文を使用します。
 - TOML: ルートはテーブルである必要があります。null の保存、日時型の
   読み込み、非有限の浮動小数点数はエラーです。
+
+`Dataset::kMaxNestingDepth`（256）より深くネストしたマップと配列は
+`Dataset` のツリーとしては読み込まれず、コンパクトな JSON テキストを保持する
+文字列になります。`Dataset::Parse(text)` で `Dataset` に変換できます。
+これらの値の内部で YAML のアンカーは定義できず、上限の 2 倍を超える TOML は
+拒否され、`Save` は上限を超える値を拒否します。
 
 `make` で `build/libcppdatasetutil.so` を生成し、`make test` で
 GoogleTest を実行します。`make doc` で Doxygen の HTML を生成します。
@@ -83,11 +93,15 @@ cmake --build build-windows --config Release --target windows_help
 ```
 
 `build-windows\Release\cppdatasetutil.dll` とインポートライブラリ
-`cppdatasetutil.lib` が生成されます。利用側は `Include\Dataset.h` を
+`cppdatasetutil.lib` が生成されます。利用側は `Include\cppdatasetutil.h` を
 インクルードし、同じアーキテクチャと互換性のある MSVC ツールセット・
 ランタイム設定で `cppdatasetutil.lib` にリンクしてください。実行時は DLL を
 実行ファイルと同じディレクトリなど Windows の DLL 検索パスに配置します。
 `CPPDATASETUTIL_BUILD` はライブラリのビルド専用で、利用側では定義しません。
+`Dataset` は標準ライブラリの型をメンバーに持つため、DLL と利用側で CRT の種類
+（`/MD` か `/MT`、Debug か Release）と `_ITERATOR_DEBUG_LEVEL` を一致させる必要が
+あります。不一致の場合は実行時にクラッシュせず、未解決の `CppDatasetUtilAbi1_*`
+シンボルとしてリンク時にエラーになります。
 テストは DLL をリンクした別の実行ファイルで実行します。Release DLL の
 実行先には互換性のある Microsoft Visual C++ 再頒布可能パッケージも必要です。
 
@@ -159,7 +173,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:
@@ -197,6 +211,7 @@ TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
 }
 ```
 
+[Tests/DatasetTest.cpp](Tests/DatasetTest.cpp) に他の例があります。
 `LoadDirectory` は読み込めないファイルをスキップするため、ケースの欠落を
 見逃さないよう、想定ファイル数または警告を確認してください。本プロジェクトの
 テストは警告や空のケースを検出します。プロジェクトルートで `make test` を

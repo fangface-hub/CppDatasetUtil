@@ -6,7 +6,8 @@
 Zeichenketten, Maps und Arrays sowie Kommentare zu einzelnen Werten.
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
+
 Dataset data;
 data["server"]["host"] = "localhost";
 data["server"]["port"] = 8080;
@@ -39,7 +40,8 @@ der Erweiterung ohne Beachtung der Groß- und Kleinschreibung. Fehler lösen
 `std::runtime_error` aus; ein fehlgeschlagenes Laden ändert das Dataset nicht.
 Kommentare werden in YAML und TOML gespeichert, aber nicht geladen; bei
 erfolgreichem Laden werden vorhandene Kommentare entfernt. CSV und JSON
-speichern keine Kommentare.
+speichern keine Kommentare. Dateipfade sind `std::string` in UTF-8 auf allen
+Plattformen, auch unter Windows; die Namen aus `LoadDirectory` sind ebenfalls UTF-8.
 
 Kommentare werden ohne führendes `#` gesetzt und mit Präfix `# ` vor dem Wert
 ausgegeben; Zeilenumbrüche erzeugen mehrere Kommentarzeilen. Erforderlich ist
@@ -53,26 +55,80 @@ können, etwa innerhalb von Inline-Tabellen, werden ausgelassen.
   dieselben Schlüssel und Zeichenkettenwerte haben; Spalten sind nach Schlüssel
   sortiert. Leere Dateien und Dateien nur mit Kopfzeile ergeben ein leeres
   Array; dieses wird als leere Datei gespeichert, ohne die Kopfzeile zu erhalten.
+  Beim Laden werden ein führendes UTF-8-BOM und Leerzeilen ignoriert; ein leerer
+  Wert in einer einspaltigen Datei wird als `""` gespeichert.
 - JSON: null, bool, vorzeichenbehaftete 64-Bit-Ganzzahlen, endliche
   Gleitkommazahlen, Zeichenketten, Arrays und Objekte.
 - YAML: dieselben Werte wie JSON und grundlegende YAML-1.2-Skalartypen. Schlüssel
   werden als skalare Zeichenketten behandelt. Mehrere Dokumente, doppelte
-  Anker, rekursive Aliase und unbekannte Tags sind Fehler. Die Ausgabe verwendet
+  Anker, rekursive Aliase, Aliase mit mehr als 1.000.000 Werten nach der
+  Expansion und unbekannte Tags sind Fehler. Die Ausgabe verwendet
   Flow-Stil; ohne Kommentare ist sie JSON-kompatibel.
 - TOML: Die Wurzel muss eine Tabelle sein. null beim Speichern, Datum/Uhrzeit
   beim Laden und nicht endliche Gleitkommazahlen sind nicht unterstützt.
+
+Maps und Arrays, die tiefer als `Dataset::kMaxNestingDepth` (256) verschachtelt
+sind, werden nicht als `Dataset`-Baum geladen. Jeder solche Wert bleibt als
+Zeichenkette mit seinem kompakten JSON-Text erhalten; `Dataset::Parse(text)`
+wandelt ihn um. YAML-Anker können innerhalb dieser Werte nicht definiert werden,
+TOML mit mehr als der doppelten Tiefe wird abgelehnt, und `Save` weist Werte
+mit Verschachtelung über dem Limit zurück.
 
 `make` erstellt `build/libcppdatasetutil.so`, `make test` führt GoogleTest aus,
 `make doc` erzeugt die Doxygen-HTML-Dokumentation einschließlich der Testliste.
 Die API-man-Seiten werden in [docs/](docs/) gepflegt. Zum Kompilieren sind C-
 und C++17-Compiler nötig; die HTML-Dokumentation benötigt Doxygen.
 
+## Windows-DLL und Hilfe
+
+Mit den C++-Desktop-Tools von Visual Studio 2022 und CMake im
+Projektverzeichnis ausführen:
+
+```powershell
+cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64
+cmake --build build-windows --config Release
+ctest --test-dir build-windows -C Release --output-on-failure
+cmake --build build-windows --config Release --target windows_help
+```
+
+DLL und Importbibliothek sind `build-windows\Release\cppdatasetutil.dll` und
+`cppdatasetutil.lib`. `Include\cppdatasetutil.h` einbinden und die
+Importbibliothek mit derselben Architektur sowie einem kompatiblen
+MSVC-Toolset und derselben Laufzeitkonfiguration linken. Die DLL liegt zur
+Laufzeit neben der ausführbaren Datei oder im DLL-Suchpfad von Windows.
+`CPPDATASETUTIL_BUILD` ist nur für den Bau der Bibliothek gedacht; Aufrufer
+dürfen es nicht definieren. `Dataset` stellt Standardbibliothekstypen als
+Member bereit, daher müssen DLL und Aufrufer dieselbe CRT-Variante (`/MD` oder
+`/MT`, Debug oder Release) und denselben `_ITERATOR_DEBUG_LEVEL` verwenden;
+bei Abweichung schlägt das Linken mit einem nicht aufgelösten Symbol
+`CppDatasetUtilAbi1_*` fehl, statt zur Laufzeit abzustürzen. Der Test führt
+eine separate, gegen die DLL gelinkte ausführbare Datei aus. Die Release-DLL
+benötigt auf dem Zielrechner außerdem das passende Microsoft Visual
+C++ Redistributable.
+
+Das Ziel `windows_help` erzeugt mit `hhc.exe` aus Microsoft HTML Help Workshop
+`build-windows\help\CppDatasetUtil.chm`. Auf der Sprachseite wählt man
+Englisch, Japanisch, Deutsch, Französisch, Italienisch, Koreanisch oder
+vereinfachtes Chinesisch; jedes Thema verweist dorthin zurück. Liegt der
+Compiler woanders, CMake mit `-DHTML_HELP_COMPILER="C:\path\to\hhc.exe"`
+konfigurieren. Ohne den Workshop lässt sich die DLL bauen, das Hilfeziel ist
+aber nicht verfügbar. Die Hilfequellen liegen in
+[docs/windows/](docs/windows/) und basieren auf den man-Seiten. Beide
+Dokumentationen sind bei Änderungen der API-Referenz gemeinsam zu pflegen.
+
 ## Datengetriebene Tests
 
-Unter `Tests/data/` gibt es ein Unterverzeichnis pro Test: `nested-values/`
-enthält JSON- und TOML-Fälle für Maps, `array-values/` YAML- und JSON-Fälle
-für Arrays. `server-config/` enthält Fälle für das Modellbeispiel. Jede Datei
-enthält ein `cases`-Array mit `input` und `expected`. Die beiden Beispieldateien:
+Die Tests verwenden unter `Tests/data/` ein Unterverzeichnis pro Testelement:
+
+```text
+Tests/data/
+  nested-values/   JSON- und TOML-Fälle für den Map-Zugriff
+  array-values/    YAML- und JSON-Fälle für den Array-Zugriff
+  server-config/   JSON- und TOML-Fälle für das Modellbeispiel
+```
+
+Jede Datei enthält ein `cases`-Array. Jeder Fall hat einen Wert `input` und einen
+Wert `expected`. Die beiden vom Beispiel verwendeten Dateien enthalten:
 
 `Tests/data/server-config/basic.json`:
 
@@ -116,7 +172,7 @@ das unabhängige Modell `ServerConfig` wird auf Endpunkt und Status geprüft:
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:
@@ -171,7 +227,10 @@ make rpm   # rpmbuild, RPM-Werkzeuge, tar, C/C++-Werkzeuge
 make deb   # dpkg-dev, dpkg-deb, make, C/C++-Werkzeuge
 ```
 
-Die Pakete in `dist/` enthalten Bibliothek, Header, man-Seiten und Lizenzen.
+Die Pakete in `dist/` enthalten die Shared Library, den Entwicklungs-Header, die
+API-man-Seiten auf Englisch, Japanisch, Deutsch, Französisch, Italienisch,
+Koreanisch und vereinfachtem Chinesisch sowie die Lizenzen des Projekts und der
+enthaltenen Abhängigkeiten.
 Nach der Installation zeigt `man 3 CppDataSet` die API; bei passender UTF-8-Locale
 wird die Übersetzung automatisch gewählt, z. B. mit
 `man -L de_DE.UTF-8 3 CppDataSet`. Die separat gepflegten Übersetzungen liegen in
@@ -191,8 +250,10 @@ und muss im Standardbranch liegen. Der gewählte Branch oder Tag bestimmt
 passen; ein vorhandener Release-Tag muss auf den gewählten Commit zeigen.
 Ein fehlender Tag wird nach allen erfolgreichen Builds erstellt. Der GitHub
 Release enthält DEB (Ubuntu 24.04, x86-64), RPM (Fedora 44, x86-64) sowie
-Windows-x64-DLL und CHM. Ein Windows-SDK-ZIP enthält zusätzlich Importbibliothek,
-Header und Lizenzen.
+Windows-x64-DLL und CHM. Ein Windows-SDK-ZIP enthält ebenfalls DLL,
+Importbibliothek, Header, CHM und Lizenzen.
+Der Windows-Job lädt das archivierte Installationsprogramm von Microsoft HTML
+Help Workshop herunter und prüft dessen SHA-256, bevor der Compiler entpackt wird.
 Die Release-Notizen enthalten Commit-Betreffzeilen seit dem nächsten vom
 ersten Eltern-Commit erreichbaren Versionstag, andernfalls die gesamte Historie.
 Ein vorhandener Release wird nicht ersetzt.

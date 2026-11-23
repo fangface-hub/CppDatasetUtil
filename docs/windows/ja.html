@@ -13,7 +13,7 @@ CppDataSet - コメントを付けられる再帰的な Dataset 値
 </p>
 <h2>書式</h2>
 <pre>
-<b>#include &lt;Dataset.h&gt;</b>
+<b>#include &lt;cppdatasetutil.h&gt;</b>
 
 <b>class Dataset;</b>
 </pre>
@@ -43,6 +43,11 @@ CppDataSet - コメントを付けられる再帰的な Dataset 値
 null、bool、std::int64_t、double、std::string、Map、Array を
 保持する std::variant です。
 </p>
+<p>
+long long、std::size_t、unsigned などその他の整数型は、符号付き 64 ビット整数として保持されます。int64
+の範囲を超える符号なし値は std::out_of_range を送出します。const char* 以外のポインターは bool
+に変換されず、コンパイル時にエラーになります。
+</p>
 <h2>コンストラクター</h2>
 <p>
 <b>Dataset()</b>
@@ -50,6 +55,36 @@ null、bool、std::int64_t、double、std::string、Map、Array を
 std::int64_t、double、const char*、std::string、Map、Array からも
 構築できます。const char* に null ポインターを指定した場合は
 std::invalid_argument を送出します。
+</p>
+<p>
+<b>size() const noexcept</b>
+マップまたは配列の要素数を返します。それ以外の値では 0 を返します。
+</p>
+<p>
+<b>contains(const std::string&amp; key) const noexcept</b>
+値が key を含むマップの場合に true を返します。
+</p>
+<p>
+<b>push_back(Dataset value)</b>
+配列の末尾に要素を追加します。null の場合は先に空の配列に変換し、コメントは保持します。それ以外の型では std::logic_error
+を送出します。
+</p>
+<p>
+<b>erase(const std::string&amp; key)</b>
+マップの要素を削除し、存在していたかどうかを返します。マップ以外では std::logic_error を送出します。
+</p>
+<p>
+<b>erase(std::size_t index)</b>
+配列の要素を削除し、後続の要素を前へ詰めます。配列以外では std::logic_error、範囲外では std::out_of_range
+を送出します。
+</p>
+<p>
+<b>value() noexcept</b>
+Value への変更可能な参照を返します。別の型の値を代入すると値が置き換わり、コメントは保持されます。
+</p>
+<p>
+<b>operator==, operator!=</b>
+値とコメントを再帰的に比較します。NaN は自分自身とも等しくありません。
 </p>
 <h2>要素へのアクセス</h2>
 <p>
@@ -101,6 +136,13 @@ Unicode の行区切り文字は使えません。TOML で構文上配置でき�
 std::runtime_error を送出します。
 </p>
 <p>
+<b>static Parse(const std::string&amp; text, const std::string&amp; format = "json")</b>
+CSV、JSON、YAML、TOML のテキストを解析します。format は大文字小文字を区別しない csv、json、yaml、yml、toml
+のいずれかで、省略時は json です。ネスト上限を含め Load
+と同じ規則に従い、コメントは読み込みません。上限より深くネストした値として保持された文字列を展開するときに使います。入力が不正な場合や未対応の形式では
+std::runtime_error を送出します。
+</p>
+<p>
 <b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
 ディレクトリ内の対応ファイルを読み込み、パスと Dataset の組を
 パス順の std::list&lt;std::pair&lt;std::string, Dataset&gt;&gt; で返します。
@@ -119,9 +161,9 @@ std::runtime_error を送出します。コメントは読み込みません。
 文字列値のマップの配列を必要とし、空配列は空ファイルとして保存されます。
 TOML のルートはマップでなければならず、null は保存できません。
 非有限の浮動小数点数は保存できません。YAML と TOML では可能な範囲で
-コメントを保存します。シリアライズはファイルを開く前に行いますが、
-書き込み中の入出力エラーではファイルが途中までしか保存されない場合や
-切り詰められる場合があります。入出力エラー、未対応の拡張子や、
+コメントを保存します。内容は一時ファイルに書き込んでから対象へ名前変更するため、書き込みに
+失敗しても既存のファイルは変更されません。シンボリックリンクは辿られ、
+権限は維持されます。入出力エラー、未対応の拡張子や、
 形式で表現できない値またはコメントに対して std::runtime_error を送出します。
 </p>
 <p>
@@ -130,9 +172,21 @@ CSV の読み込みでは先頭行を列名とし、各行を文字列値のマ�
 複数文書、重複アンカー、再帰的な別名、未対応のタグを拒否します。
 TOML の日時型および非有限数は読み込めません。
 </p>
+<p>
+CSV の読み込みでは、先頭の UTF-8 BOM と空行を無視します。1 列のファイルの空値は、レコードが失われないよう ""
+として保存されます。ファイルパスは Windows を含む全プラットフォームで UTF-8 の std::string
+として扱われ、LoadDirectory が返す名前も UTF-8 です。Windows DLL では、利用側の CRT の種類（/MD または
+/MT、Debug または Release）と _ITERATOR_DEBUG_LEVEL を DLL
+と一致させる必要があります。不一致の場合は、未解決の CppDatasetUtilAbi1_* シンボルとしてリンク時にエラーになります。
+</p>
+<p>
+Dataset::kMaxNestingDepth（256）より深くネストしたマップと配列はツリーとしては読み込まれず、コンパクトな JSON
+テキストを保持する文字列になり、Parse で変換できます。これらの値の内部では YAML のアンカーを定義できず、上限の 2 倍を超える TOML
+は拒否され、Save は上限を超える値を拒否します。合計 1,000,000 個を超える値に展開される YAML の別名はエラーです。
+</p>
 <h2>使用例</h2>
 <pre>
-#include &lt;Dataset.h&gt;
+#include &lt;cppdatasetutil.h&gt;
 #include &lt;string&gt;
 #include &lt;variant&gt;
 
@@ -190,7 +244,7 @@ enabled = false
 #include &lt;variant&gt;
 
 #include &lt;gtest/gtest.h&gt;
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

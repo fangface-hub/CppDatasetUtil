@@ -6,7 +6,7 @@ The C++17 `Dataset` holds null, boolean, 64-bit integer, double, string, map,
 and array values, along with comments associated with each value.
 
 ```cpp
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 Dataset data;
 data["server"]["host"] = "localhost";
@@ -41,7 +41,9 @@ specified directory and symlink names.
 case-insensitive file extension. They throw `std::runtime_error` on errors;
 a failed load leaves the original Dataset unchanged. Comments are saved to
 YAML and TOML, but are not loaded, so a successful load removes existing
-comments. CSV and JSON do not save comments.
+comments. CSV and JSON do not save comments. File paths are `std::string`s
+encoded as UTF-8 on every platform, including Windows, and names returned by
+`LoadDirectory` are UTF-8 as well.
 
 Set comments without a leading `#`; they are written before the value with a
 `# ` prefix. Strings containing line breaks are split into multiple comment
@@ -55,15 +57,24 @@ inside inline tables, are omitted.
   field counts are errors. To save, every row must be a nonempty map with the
   same keys and string values. Columns are ordered by key. Empty files and
   header-only files load as empty arrays, and empty arrays save as empty files
-  (header-only column names are not retained).
+  (header-only column names are not retained). A leading UTF-8 BOM and blank
+  lines are ignored when loading; an empty value in a single-column file is
+  saved as `""` so the record is preserved.
 - JSON: Supports null, booleans, signed 64-bit integers, finite floating-point
   numbers, strings, arrays, and objects.
 - YAML: Supports the same values as JSON and resolves basic YAML 1.2 scalar
   types. Map keys are treated as scalar strings. Multiple documents, duplicate
-  anchors, recursive aliases, and unsupported tags are errors. Output uses flow
+  anchors, recursive aliases, aliases expanding to more than 1,000,000 values in
+  total, and unsupported tags are errors. Output uses flow
   style; without comments, it uses the previous JSON-compatible syntax.
 - TOML: The root must be a table. Saving null, loading date/time values, and
   using non-finite floating-point numbers are errors.
+
+Maps and arrays nested deeper than `Dataset::kMaxNestingDepth` (256) are not
+loaded as `Dataset` trees. Each such value is kept as a string holding its
+compact JSON text; pass it to `Dataset::Parse(text)` to convert it. YAML
+anchors cannot be defined inside these values, TOML nested more than twice
+the limit is rejected, and `Save` rejects values nested beyond the limit.
 
 Run `make` to build `build/libcppdatasetutil.so`, `make test` to run the
 GoogleTest suite, and `make doc` to generate Doxygen HTML documentation.
@@ -85,13 +96,17 @@ cmake --build build-windows --config Release --target windows_help
 ```
 
 The DLL and import library are `build-windows\Release\cppdatasetutil.dll` and
-`cppdatasetutil.lib`. Include `Include\Dataset.h` and link the import library
-using the same architecture and a compatible MSVC toolset and runtime
+`cppdatasetutil.lib`. Include `Include\cppdatasetutil.h` and link the import
+library using the same architecture and a compatible MSVC toolset and runtime
 configuration. Put the DLL next to the executable or on the Windows DLL
 search path at runtime. `CPPDATASETUTIL_BUILD` is for building the library
-only; consumers must not define it. The test runs a separate DLL-linked
-consumer executable. The Release DLL also requires the compatible Microsoft
-Visual C++ Redistributable on the target machine.
+only; consumers must not define it. `Dataset` exposes standard library members,
+so the DLL and its consumers must use the same CRT flavor (`/MD` or `/MT`,
+Debug or Release) and `_ITERATOR_DEBUG_LEVEL`; a mismatch fails at link time
+with an unresolved `CppDatasetUtilAbi1_*` symbol instead of crashing at run
+time. The test runs a separate DLL-linked consumer executable. The Release DLL
+also requires the compatible Microsoft Visual C++ Redistributable on the
+target machine.
 
 The `windows_help` target uses Microsoft HTML Help Workshop's `hhc.exe` to
 produce `build-windows\help\CppDatasetUtil.chm`. Choose English, Japanese,
@@ -161,7 +176,7 @@ the expected values:
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:
@@ -199,6 +214,7 @@ TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
 }
 ```
 
+[Tests/DatasetTest.cpp](Tests/DatasetTest.cpp) contains more examples.
 `LoadDirectory` skips unreadable files, so verify the expected file count or
 check its warnings to avoid silently missing cases. The project's tests check
 for warnings and empty files. Run them with `make test` from the project root.

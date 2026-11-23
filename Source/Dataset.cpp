@@ -5,9 +5,13 @@
  * Serialization and filesystem operations are implemented in Formats.cpp.
  */
 
-#include "Dataset.h"
-
 #include <utility>
+
+#include "cppdatasetutil.h"
+
+#if defined(_MSC_VER)
+extern "C" CPPDATASETUTIL_API const int CPPDATASETUTIL_ABI_SYMBOL = 1;
+#endif
 
 Dataset::Dataset(std::nullptr_t) : value_(nullptr) {}
 Dataset::Dataset(bool value) : value_(value) {}
@@ -56,7 +60,58 @@ const Dataset& Dataset::operator[](std::size_t index) const {
   return array->at(index);
 }
 
+std::size_t Dataset::size() const noexcept {
+  if (const auto* map = std::get_if<Map>(&value_)) return map->size();
+  if (const auto* array = std::get_if<Array>(&value_)) return array->size();
+  return 0;
+}
+
+bool Dataset::contains(const std::string& key) const noexcept {
+  const auto* map = std::get_if<Map>(&value_);
+  return map && map->find(key) != map->end();
+}
+
+void Dataset::push_back(Dataset value) {
+  if (std::holds_alternative<std::nullptr_t>(value_)) {
+    value_ = Array{};
+  }
+  auto* array = std::get_if<Array>(&value_);
+  if (!array) {
+    throw std::logic_error("Dataset is not an array");
+  }
+  array->push_back(std::move(value));
+}
+
+bool Dataset::erase(const std::string& key) {
+  auto* map = std::get_if<Map>(&value_);
+  if (!map) {
+    throw std::logic_error("Dataset is not a map");
+  }
+  return map->erase(key) > 0;
+}
+
+void Dataset::erase(std::size_t index) {
+  auto* array = std::get_if<Array>(&value_);
+  if (!array) {
+    throw std::logic_error("Dataset is not an array");
+  }
+  if (index >= array->size()) {
+    throw std::out_of_range("Dataset array index out of range");
+  }
+  array->erase(array->begin() + static_cast<std::ptrdiff_t>(index));
+}
+
+bool Dataset::operator==(const Dataset& other) const {
+  return value_ == other.value_ && comments_ == other.comments_;
+}
+
+bool Dataset::operator!=(const Dataset& other) const {
+  return !(*this == other);
+}
+
 const Dataset::Value& Dataset::value() const noexcept { return value_; }
+
+Dataset::Value& Dataset::value() noexcept { return value_; }
 
 const std::vector<std::string>& Dataset::comments() const noexcept {
   return comments_;

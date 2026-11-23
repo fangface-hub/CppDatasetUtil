@@ -29,7 +29,7 @@ build/yaml-%.o: third_party/libyaml/src/%.c | build
 		-DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING=\"0.2.5\" \
 		-c $< -o $@
 
-$(LIBRARY_REAL): Source/Dataset.cpp Source/Formats.cpp Include/Dataset.h $(YAML_OBJECTS) | build
+$(LIBRARY_REAL): Source/Dataset.cpp Source/Formats.cpp Include/cppdatasetutil.h $(YAML_OBJECTS) | build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -Wall -Wextra -fPIC -shared \
 		-Wl,-soname,libcppdatasetutil.so.0 \
 		Source/Dataset.cpp Source/Formats.cpp $(YAML_OBJECTS) $(LDFLAGS) -o $@
@@ -37,7 +37,7 @@ $(LIBRARY_REAL): Source/Dataset.cpp Source/Formats.cpp Include/Dataset.h $(YAML_
 $(LIBRARY): $(LIBRARY_REAL)
 	ln -sfn libcppdatasetutil.so.0 $@
 
-$(TEST): Tests/DatasetTest.cpp $(LIBRARY) Include/Dataset.h
+$(TEST): Tests/DatasetTest.cpp $(LIBRARY) Include/cppdatasetutil.h
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -Wall -Wextra $< -Lbuild \
 		-Wl,-rpath,'$$ORIGIN' -lcppdatasetutil -lgtest_main -lgtest -pthread -o $@
 
@@ -49,7 +49,7 @@ install: $(LIBRARY)
 		"$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil" "$(DESTDIR)$(MANDIR)/man3"
 	install -m 755 $(LIBRARY_REAL) "$(DESTDIR)$(LIBDIR)/"
 	ln -sfn libcppdatasetutil.so.0 "$(DESTDIR)$(LIBDIR)/libcppdatasetutil.so"
-	install -m 644 Include/Dataset.h "$(DESTDIR)$(INCLUDEDIR)/"
+	install -m 644 Include/cppdatasetutil.h "$(DESTDIR)$(INCLUDEDIR)/"
 	install -m 644 LICENSE "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/LICENSE"
 	install -m 644 third_party/json/LICENSE.MIT "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/json-LICENSE"
 	install -m 644 third_party/libyaml/License "$(DESTDIR)$(DATADIR)/licenses/cppdatasetutil/libyaml-LICENSE"

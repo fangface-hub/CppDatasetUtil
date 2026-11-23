@@ -13,7 +13,7 @@ CppDataSet - 带可选注释的递归 Dataset 值
 </p>
 <h2>用法</h2>
 <pre>
-<b>#include &lt;Dataset.h&gt;</b>
+<b>#include &lt;cppdatasetutil.h&gt;</b>
 <b>class Dataset;</b>
 </pre>
 <h2>描述</h2>
@@ -29,6 +29,10 @@ std::vector&lt;Dataset&gt;，Dataset::Value 是包含支持类型的 std::varian
 默认构造函数创建不带注释的 null。也可以从 nullptr、bool、int、
 std::int64_t、double、const char*、std::string、Map 和 Array 构造。
 向 const char* 传入空指针会抛出 std::invalid_argument。
+</p>
+<p>
+其他整数类型（如 long long、std::size_t 或 unsigned）会保存为有符号 64 位整数；超出 int64 范围的无符号值会抛出
+std::out_of_range。除 const char* 外的指针不会转换为 bool，而是在编译时被拒绝。
 </p>
 <h2>访问</h2>
 <p>
@@ -47,6 +51,34 @@ std::logic_error，索引越界时抛出 std::out_of_range。替换父 Dataset
 <b>value() const noexcept</b>
 返回 Value 的 const 引用。类型不匹配时，std::get 抛出
 std::bad_variant_access，std::get_if 返回空指针。
+</p>
+<p>
+<b>size() const noexcept</b>
+返回映射或数组的元素数量；其他值返回 0。
+</p>
+<p>
+<b>contains(const std::string&amp; key) const noexcept</b>
+当值是包含 key 的映射时返回 true。
+</p>
+<p>
+<b>push_back(Dataset value)</b>
+向数组末尾追加元素。null 值会先变为空数组并保留其注释。其他类型会抛出 std::logic_error。
+</p>
+<p>
+<b>erase(const std::string&amp; key)</b>
+删除映射项并返回该项是否存在。非映射值会抛出 std::logic_error。
+</p>
+<p>
+<b>erase(std::size_t index)</b>
+删除数组元素，后面的元素前移。非数组值抛出 std::logic_error，索引越界抛出 std::out_of_range。
+</p>
+<p>
+<b>value() noexcept</b>
+返回 Value 的可修改引用。赋入其他类型的值会替换该值，注释保持不变。
+</p>
+<p>
+<b>operator==, operator!=</b>
+递归比较值和注释。NaN 与自身也不相等。
 </p>
 <h2>注释</h2>
 <p>
@@ -69,6 +101,12 @@ std::bad_variant_access，std::get_if 返回空指针。
 或值会导致 std::runtime_error。
 </p>
 <p>
+<b>static Parse(const std::string&amp; text, const std::string&amp; format = "json")</b>
+解析 CSV、JSON、YAML 或 TOML 文本。format 是不区分大小写的名称：csv、json、yaml、yml 或 toml，默认为
+json。规则（包括嵌套限制）与 Load 相同，不读取注释。可用它展开因嵌套超过限制而保留的字符串。输入无效或格式不受支持时抛出
+std::runtime_error。
+</p>
+<p>
 <b>static LoadDirectory(const std::string&amp; path, bool recursive = false)</b>
 返回由路径和 Dataset 组成的 std::list，按路径排序。仅当 recursive=true
 时遍历子目录，忽略不支持的扩展名。会跟随文件和目录的符号链接；
@@ -81,8 +119,8 @@ std::bad_variant_access，std::get_if 返回空指针。
 <b>Save(const std::string&amp; path) const</b>
 根据扩展名保存。CSV 要求数组中的映射非空、具有相同的键且值均为
 字符串；空数组保存为空文件。TOML 根节点必须为映射且不支持 null。
-不能保存非有限浮点数。YAML 和 TOML 保存可表示的注释。序列化在打开
-文件之前完成，但写入时发生输入输出错误可能导致文件截断或不完整。
+不能保存非有限浮点数。YAML 和 TOML 保存可表示的注释。内容先写入临时文件再重命名覆盖目标，因此写入出错时现有文件保持不变。
+会跟随符号链接并保留权限。
 输入输出错误、不支持的扩展名以及无法表示的值或注释会导致
 std::runtime_error。
 </p>
@@ -91,9 +129,20 @@ CSV 将首行用作列名，之后每行读取为字符串映射。重复列名�
 均为错误。YAML 解析支持的基本标量类型，并拒绝多文档、重复锚点、
 递归别名和不支持的标签。TOML 日期时间及非有限数值不能读取。
 </p>
+<p>
+读取 CSV 时会忽略开头的 UTF-8 BOM 和空行；单列文件中的空值保存为 ""，以免记录丢失。文件路径在所有平台（包括 Windows）上都按
+UTF-8 的 std::string 处理，LoadDirectory 返回的名称也是 UTF-8。使用 Windows DLL 时，调用方的
+CRT 类型（/MD 或 /MT，Debug 或 Release）和 _ITERATOR_DEBUG_LEVEL 必须与 DLL
+一致；否则会在链接时因未解析的 CppDatasetUtilAbi1_* 符号而报错。
+</p>
+<p>
+嵌套深度超过 Dataset::kMaxNestingDepth（256）的映射和数组不会作为树读取，而是以保存其紧凑 JSON 文本的字符串保留，可用
+Parse 转换。这些值内部不能定义 YAML 锚点，嵌套超过限制两倍的 TOML 会被拒绝，Save 也会拒绝超过限制的值。总共展开为超过
+1,000,000 个值的 YAML 别名属于错误。
+</p>
 <h2>示例</h2>
 <pre>
-#include &lt;Dataset.h&gt;
+#include &lt;cppdatasetutil.h&gt;
 #include &lt;string&gt;
 #include &lt;variant&gt;
 Dataset data;
@@ -148,7 +197,7 @@ enabled = false
 #include &lt;variant&gt;
 
 #include &lt;gtest/gtest.h&gt;
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:

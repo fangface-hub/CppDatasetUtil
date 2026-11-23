@@ -18,7 +18,7 @@
 #include <limits>
 #include <sstream>
 
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 namespace {
 
@@ -165,6 +165,70 @@ TEST(DatasetTest, RejectsInvalidAccess) {
   EXPECT_THROW(result["missing"], std::out_of_range);
   EXPECT_THROW(Dataset(static_cast<const char*>(nullptr)),
                std::invalid_argument);
+}
+
+/**
+ * @brief Verify in-place container editing and comparison.
+ * @test Append, erase, query, replace values, and compare nested datasets;
+ *     reject operations on the wrong value type.
+ */
+TEST(DatasetTest, EditsContainersInPlace) {
+  Dataset list;
+  list.push_back(1);
+  list.push_back("two");
+  list.push_back(Dataset::Map{{"k", 3}});
+  EXPECT_EQ(list.size(), 3u);
+  list.erase(std::size_t{0});
+  EXPECT_EQ(list.size(), 2u);
+  EXPECT_EQ(std::get<std::string>(list[0].value()), "two");
+  EXPECT_THROW(list.erase(std::size_t{2}), std::out_of_range);
+  EXPECT_THROW(list.erase("k"), std::logic_error);
+
+  Dataset map;
+  map["a"] = 1;
+  map["b"]["c"] = 2;
+  EXPECT_TRUE(map.contains("a"));
+  EXPECT_FALSE(map.contains("missing"));
+  EXPECT_TRUE(map.erase("a"));
+  EXPECT_FALSE(map.erase("a"));
+  EXPECT_EQ(map.size(), 1u);
+  EXPECT_THROW(map.push_back(1), std::logic_error);
+  EXPECT_FALSE(Dataset(5).contains("a"));
+  EXPECT_EQ(Dataset("text").size(), 0u);
+
+  Dataset value = 1;
+  value.set_comments({"note"});
+  value.value() = std::string("changed");
+  EXPECT_EQ(value.comments().at(0), "note");
+  EXPECT_EQ(std::get<std::string>(value.value()), "changed");
+
+  Dataset copy = map;
+  EXPECT_EQ(copy, map);
+  copy["b"]["c"] = 3;
+  EXPECT_NE(copy, map);
+  copy = map;
+  copy.set_comments({"x"});
+  EXPECT_NE(copy, map);
+}
+
+/**
+ * @brief Verify construction from every integer type.
+ * @test Store `long long`, unsigned, and narrow integers as int64 and reject
+ *     unsigned values beyond the int64 range.
+ */
+TEST(DatasetTest, ConstructsFromAnyIntegerType) {
+  const auto get = [](const Dataset& data) {
+    return std::get<std::int64_t>(data.value());
+  };
+  EXPECT_EQ(get(Dataset(-5LL)), -5);
+  EXPECT_EQ(get(Dataset(std::size_t{7})), 7);
+  EXPECT_EQ(get(Dataset(8u)), 8);
+  EXPECT_EQ(get(Dataset(static_cast<short>(-3))), -3);
+  EXPECT_EQ(get(Dataset(std::numeric_limits<std::uint64_t>::max() / 2)),
+            std::numeric_limits<std::int64_t>::max());
+  EXPECT_THROW(Dataset(std::numeric_limits<std::uint64_t>::max()),
+               std::out_of_range);
+  EXPECT_TRUE(std::holds_alternative<bool>(Dataset(true).value()));
 }
 
 /**
@@ -323,6 +387,198 @@ TEST_F(FormatTest, RejectsInvalidInputWithoutChangingDataset) {
   }
   EXPECT_THROW(data.Load(Path("missing.json")), std::runtime_error);
   EXPECT_THROW(data.Load(Path("unknown.txt")), std::runtime_error);
+}
+
+/**
+ * @brief Verify very long YAML scalars are resolved without recursion.
+ * @test A multi-megabyte plain scalar loads as a string and long numerals are
+ *     still resolved.
+ */
+TEST_F(FormatTest, ResolvesLongYamlScalars) {
+  const auto path = Path("long.yaml");
+  Write(path, "a: " + std::string(4000000, '1') + "x\nb: 1.5e3\nc: -0x1F\n");
+  Dataset data;
+  data.Load(path);
+  EXPECT_EQ(std::get<std::string>(data["a"].value()).size(), 4000001u);
+  EXPECT_DOUBLE_EQ(std::get<double>(data["b"].value()), 1500.0);
+  EXPECT_EQ(std::get<std::int64_t>(data["c"].value()), -31);
+}
+
+/**
+ * @brief Verify very long map keys survive a YAML round trip.
+ * @test Save keys beyond libyaml's simple-key limit, with and without comments,
+ *     and load them back unchanged.
+ */
+TEST_F(FormatTest, RoundTripsLongYamlKeys) {
+  const std::string long_key(5000, 'k');
+  for (bool comment : {false, true}) {
+    Dataset data;
+    data[long_key]["inner"] = 1;
+    data["short"] = "v";
+    if (comment) data["short"].set_comments({"note"});
+    const auto path = Path(comment ? "longkey_c.yaml" : "longkey.yaml");
+    data.Save(path);
+    Dataset loaded;
+    loaded.Load(path);
+    EXPECT_EQ(std::get<std::int64_t>(loaded[long_key]["inner"].value()), 1);
+    EXPECT_EQ(std::get<std::string>(loaded["short"].value()), "v");
+  }
+}
+
+/**
+ * @brief Verify CSV loading tolerates a BOM and blank lines.
+ * @test Load a BOM-prefixed file with blank lines and a CRLF trailing blank
+ *     line, and round-trip an empty single-column value.
+ */
+TEST_F(FormatTest, LoadsCsvWithBomAndBlankLines) {
+  const auto path = Path("bom.csv");
+  Write(path,
+        "\xEF\xBB\xBF"
+        "a,b\r\n1,2\r\n\r\n3,4\n\n");
+  Dataset data;
+  data.Load(path);
+  ASSERT_EQ(data.size(), 2u);
+  EXPECT_EQ(std::get<std::string>(data[0]["a"].value()), "1");
+  EXPECT_EQ(std::get<std::string>(data[1]["b"].value()), "4");
+
+  Dataset single =
+      Dataset::Array{Dataset::Map{{"x", ""}}, Dataset::Map{{"x", "y"}}};
+  const auto single_path = Path("single.csv");
+  single.Save(single_path);
+  Dataset loaded;
+  loaded.Load(single_path);
+  ASSERT_EQ(loaded.size(), 2u);
+  EXPECT_EQ(std::get<std::string>(loaded[0]["x"].value()), "");
+}
+
+/**
+ * @brief Verify Save replaces files without leaving temporary files.
+ * @test Overwrite an existing file, keep its permissions, and write through a
+ *     symbolic link.
+ */
+TEST_F(FormatTest, SavesAtomically) {
+  namespace fs = std::filesystem;
+  const auto path = Path("atomic.json");
+  Write(path, "old");
+  fs::permissions(path, fs::perms::owner_read | fs::perms::owner_write);
+  Dataset data;
+  data["k"] = 1;
+  data.Save(path);
+  Dataset loaded;
+  loaded.Load(path);
+  EXPECT_EQ(std::get<std::int64_t>(loaded["k"].value()), 1);
+  EXPECT_EQ(fs::status(path).permissions(),
+            fs::perms::owner_read | fs::perms::owner_write);
+
+  const auto link = Path("atomic_link.json");
+  std::error_code ec;
+  fs::create_symlink(fs::path(path).filename(), link, ec);
+  if (!ec) {
+    data["k"] = 2;
+    data.Save(link);
+    EXPECT_TRUE(fs::is_symlink(link));
+    loaded.Load(path);
+    EXPECT_EQ(std::get<std::int64_t>(loaded["k"].value()), 2);
+  }
+  for (const auto& entry : fs::directory_iterator(fs::path(path).parent_path()))
+    EXPECT_EQ(entry.path().string().find(".tmp"), std::string::npos);
+}
+
+/**
+ * @brief Verify paths are treated as UTF-8 strings.
+ * @test Save, load and list a file whose name is non-ASCII.
+ */
+TEST_F(FormatTest, HandlesNonAsciiPaths) {
+  const auto path = Path("\xE3\x83\x87\xE3\x83\xBC\xE3\x82\xBF.json");
+  Dataset data;
+  data["k"] = "v";
+  data.Save(path);
+  Dataset loaded;
+  loaded.Load(path);
+  EXPECT_EQ(std::get<std::string>(loaded["k"].value()), "v");
+  const auto listed = Dataset::LoadDirectory(
+      std::filesystem::path(path).parent_path().string());
+  ASSERT_FALSE(listed.empty());
+  EXPECT_NE(std::find_if(listed.begin(), listed.end(),
+                         [&](const auto& item) { return item.first == path; }),
+            listed.end());
+}
+
+/**
+ * @brief Verify YAML alias expansion is bounded.
+ * @test Reject an alias bomb with std::runtime_error while accepting ordinary
+ *     alias reuse.
+ */
+TEST_F(FormatTest, RejectsYamlAliasBomb) {
+  std::string bomb = "a: &a [x, x, x, x, x, x, x, x, x, x]\n";
+  char previous = 'a';
+  for (char name = 'b'; name <= 'i'; ++name) {
+    bomb += std::string(1, name) + ": &" + name + " [";
+    for (int i = 0; i < 10; ++i)
+      bomb += std::string(i ? ", *" : "*") + previous;
+    bomb += "]\n";
+    previous = name;
+  }
+  const auto path = Path("bomb.yaml");
+  Write(path, bomb);
+  Dataset data;
+  EXPECT_THROW(data.Load(path), std::runtime_error);
+
+  Write(path, "a: &a [1, 2]\nb: *a\nc: *a\n");
+  data.Load(path);
+  EXPECT_EQ(std::get<Dataset::Array>(data["c"].value()).size(), 2u);
+}
+
+/**
+ * @brief Verify nesting beyond the limit is kept as JSON text.
+ * @test Load JSON, YAML, and TOML nested deeper than the limit without
+ *     crashing, expand the retained text with Parse(), and reject unsafe TOML
+ *     and unsaveable depth.
+ */
+TEST_F(FormatTest, KeepsDeepNestingAsText) {
+  const auto nested = [](std::size_t levels) {
+    return std::string(levels, '[') + "1" + std::string(levels, ']');
+  };
+  const auto leaf = [](const Dataset& root) {
+    const Dataset* node = &root;
+    std::size_t levels = 0;
+    while (const auto* array = std::get_if<Dataset::Array>(&node->value())) {
+      node = &(*array)[0];
+      ++levels;
+    }
+    return std::make_pair(levels, node);
+  };
+  constexpr std::size_t kLevels = 5000;
+  for (const std::string name : {"deep.json", "deep.yaml"}) {
+    SCOPED_TRACE(name);
+    const auto path = Path(name);
+    Write(path, nested(kLevels));
+    Dataset data;
+    data.Load(path);
+    const auto [levels, node] = leaf(data);
+    EXPECT_EQ(levels, Dataset::kMaxNestingDepth);
+    const auto* text = std::get_if<std::string>(&node->value());
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(*text, nested(kLevels - Dataset::kMaxNestingDepth));
+    EXPECT_EQ(leaf(Dataset::Parse(*text)).first, Dataset::kMaxNestingDepth);
+  }
+
+  const auto toml = Path("deep.toml");
+  Write(toml, "a = " + nested(300) + "\n");
+  Dataset data;
+  data.Load(toml);
+  const auto [levels, node] = leaf(data["a"]);
+  EXPECT_EQ(levels, Dataset::kMaxNestingDepth - 1);
+  EXPECT_EQ(std::get<std::string>(node->value()), nested(300 - 255));
+  Write(toml, "a = " + nested(5000) + "\n");
+  EXPECT_THROW(data.Load(toml), std::runtime_error);
+  EXPECT_EQ(std::get<std::string>(leaf(data["a"]).second->value()),
+            nested(300 - 255));
+
+  Dataset too_deep = 1;
+  for (std::size_t i = 0; i <= Dataset::kMaxNestingDepth; ++i)
+    too_deep = Dataset::Array{too_deep};
+  EXPECT_THROW(too_deep.Save(Path("too-deep.json")), std::runtime_error);
 }
 
 /**

@@ -4,7 +4,7 @@
 CppDataSet \- recursive Dataset value with optional comments
 .SH SYNOPSIS
 .nf
-.B #include <Dataset.h>
+.B #include <cppdatasetutil.h>
 .B class Dataset;
 .fi
 .SH DESCRIPTION
@@ -22,6 +22,11 @@ is a std::variant of the supported types. The default constructor creates null
 without comments. Constructors also accept nullptr, bool, int, std::int64_t,
 double, const char*, std::string, Map and Array. A null const char* throws
 std::invalid_argument.
+.PP
+Any other integer type, such as long long, std::size_t or unsigned, is
+stored as a signed 64-bit integer; an unsigned value above the int64 range
+throws std::out_of_range. Pointers other than const char* are rejected at
+compile time instead of becoming bool.
 .SH ACCESS
 .TP
 .B operator[](const std::string& key)
@@ -39,6 +44,31 @@ its elements.
 .B value() const noexcept
 Returns a const reference to Value. On a type mismatch, std::get throws
 std::bad_variant_access and std::get_if returns a null pointer.
+.TP
+.B size() const noexcept
+Returns the number of entries of a map or array, and 0 for any other value.
+.TP
+.B contains(const std::string& key) const noexcept
+Returns true if the value is a map that contains key.
+.TP
+.B push_back(Dataset value)
+Appends an element to an array. A null value first becomes an empty array
+and keeps its comments. Any other type throws std::logic_error.
+.TP
+.B erase(const std::string& key)
+Removes a map entry and returns whether it existed. A non-map value throws
+std::logic_error.
+.TP
+.B erase(std::size_t index)
+Removes an array element and shifts later elements down. A non-array value
+throws std::logic_error; an out-of-range index throws std::out_of_range.
+.TP
+.B value() noexcept
+Returns a mutable reference to Value. Assigning a new alternative replaces
+the value and keeps the comments.
+.TP
+.B operator==, operator!=
+Compare values and comments recursively. A NaN is never equal to itself.
 .SH COMMENTS
 .TP
 .B comments() const noexcept
@@ -58,6 +88,13 @@ Loads CSV, JSON, YAML or TOML based on the case-insensitive extension .csv,
 value and comments; failure leaves the Dataset unchanged. I/O errors, invalid
 input, and unsupported extensions or values throw std::runtime_error.
 .TP
+.B "static Parse(const std::string& text, const std::string& format = ""json"")"
+Parses CSV, JSON, YAML or TOML text. format is a case-insensitive name: csv,
+json, yaml, yml or toml (default json). The rules, including the nesting
+limit, are those of Load, without comments. Use it to expand the string kept
+for a value nested deeper than the limit. Invalid input or an unsupported
+format throws std::runtime_error.
+.TP
 .B "static LoadDirectory(const std::string& path, bool recursive = false)"
 Returns a std::list of path and Dataset pairs sorted by path. Subdirectories
 are traversed only when recursive=true. Unsupported extensions are ignored.
@@ -73,8 +110,9 @@ Saves according to the extension. CSV requires an array of nonempty maps
 with identical keys and string values; an empty array produces an empty file.
 The TOML root must be a map and null is unsupported. Non-finite floating-point
 numbers cannot be saved. YAML and TOML save representable comments.
-Serialization precedes opening the file, but a write error can leave it
-truncated or incomplete. I/O errors, unsupported extensions, and values or
+The content is written to a temporary file and renamed over the target, so a
+write error leaves an existing file unchanged. Symbolic links are followed and
+permissions are kept. I/O errors, unsupported extensions, and values or
 comments that cannot be represented throw std::runtime_error.
 .PP
 CSV uses the first row as column names and loads each subsequent row as a
@@ -82,9 +120,24 @@ map of strings. Duplicate names and inconsistent field counts are errors.
 YAML resolves supported core scalars and rejects multiple documents, duplicate
 anchors, recursive aliases and unsupported tags. TOML date/time values and
 non-finite numbers cannot be loaded.
+.PP
+When loading CSV, a leading UTF-8 BOM and blank lines are ignored; an empty
+value in a single-column file is saved as "" so the record is kept. File
+paths are std::string values encoded as UTF-8 on every platform, including
+Windows, and the names returned by LoadDirectory are UTF-8. With the
+Windows DLL, the CRT flavor (/MD or /MT, Debug or Release) and
+_ITERATOR_DEBUG_LEVEL of the consumer must match the DLL; a mismatch fails
+at link time with an unresolved CppDatasetUtilAbi1_* symbol.
+.PP
+Maps and arrays nested deeper than Dataset::kMaxNestingDepth (256) are not
+loaded as trees. Each is kept as a string holding its compact JSON text,
+which Parse converts back. YAML anchors cannot be defined inside such
+values, TOML nested more than twice the limit is rejected, and Save rejects
+values nested beyond the limit. YAML aliases that expand to more than
+1,000,000 values in total are errors.
 .SH EXAMPLE
 .nf
-#include <Dataset.h>
+#include <cppdatasetutil.h>
 #include <string>
 #include <variant>
 Dataset data;
@@ -140,7 +193,7 @@ enabled = false
 #include <variant>
 
 #include <gtest/gtest.h>
-#include "Dataset.h"
+#include "cppdatasetutil.h"
 
 class ServerConfig {
  public:
