@@ -28,12 +28,9 @@ if(MSVC)
   target_compile_definitions(cppdatasetutil PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
-# Static library; the output name matches the DLL import library, so it is kept in its own directory
+# Static library (cppdatasetutil_static.lib); the DLL import library is cppdatasetutil.lib
 if(MSVC)
   add_library(cppdatasetutil_static STATIC $<TARGET_PROPERTY:cppdatasetutil,SOURCES>)
-  set_target_properties(cppdatasetutil_static PROPERTIES
-    OUTPUT_NAME cppdatasetutil
-    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/static)
   target_compile_features(cppdatasetutil_static PUBLIC cxx_std_${CPPDATASETUTIL_CXX_STANDARD})
   target_compile_definitions(cppdatasetutil_static PUBLIC CPPDATASETUTIL_STATIC)
   target_include_directories(cppdatasetutil_static
