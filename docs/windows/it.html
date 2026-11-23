@@ -163,8 +163,12 @@ numeri non finiti TOML non vengono caricati.
 </p>
 <p>
 Durante il caricamento di un CSV, un BOM UTF-8 iniziale e le righe vuote
-vengono ignorati; un valore vuoto in un file a colonna singola viene
-salvato come "" per conservare il record. I percorsi dei file sono valori
+vengono ignorati; un valore vuoto o un nome di colonna vuoto in un file a
+colonna singola viene salvato come "" per conservare il record. A differenza
+di YAML, le chiavi duplicate di un oggetto JSON non sono un errore: prevale
+l'ultimo valore e i duplicati nei valori annidati oltre
+Dataset::kMaxNestingDepth restano invariati nel loro testo JSON. Se i
+duplicati contano, convalidate voi stessi gli input non attendibili. I percorsi dei file sono valori
 std::string in UTF-8 su ogni piattaforma, Windows incluso, e anche i nomi
 restituiti da LoadDirectory sono UTF-8. Con la DLL Windows, la variante del
 CRT (/MD o /MT, Debug o Release) e _ITERATOR_DEBUG_LEVEL del chiamante

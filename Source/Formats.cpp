@@ -704,7 +704,7 @@ std::string SaveCsv(const Dataset& data) {
   bool first = true;
   for (const auto& entry : *header) {
     if (!first) result += ',';
-    result += CsvField(entry.first);
+    result += CsvField(entry.first, header->size() == 1);
     first = false;
   }
   result += "\r\n";

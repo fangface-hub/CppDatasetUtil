@@ -65,9 +65,13 @@ inside inline tables, are omitted.
   header-only files load as empty arrays, and empty arrays save as empty files
   (header-only column names are not retained). A leading UTF-8 BOM and blank
   lines are ignored when loading; an empty value in a single-column file is
-  saved as `""` so the record is preserved.
+  saved as `""` so the record is preserved; likewise an empty column name in a
+  single-column file.
 - JSON: Supports null, booleans, signed 64-bit integers, finite floating-point
-  numbers, strings, arrays, and objects.
+  numbers, strings, arrays, and objects. Unlike YAML, duplicate object keys are
+  not an error: the last value wins, and duplicates inside values nested deeper
+  than `kMaxNestingDepth` are kept as-is in their JSON text. Validate untrusted
+  input yourself if duplicates matter.
 - YAML: Supports the same values as JSON and resolves basic YAML 1.2 scalar
   types. Map keys are treated as scalar strings. Multiple documents, duplicate
   anchors, recursive aliases, aliases expanding to more than 1,000,000 values in
