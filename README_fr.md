@@ -64,9 +64,13 @@ sont omis.
   en-tête donnent un tableau vide, enregistré comme fichier vide sans conserver
   les noms de l'en-tête. Au chargement, un BOM UTF-8 initial et les lignes vides
   sont ignorés ; une valeur vide dans un fichier à une colonne est enregistrée
-  sous la forme `""`.
+  sous la forme `""`, de même qu'un nom de colonne vide.
 - JSON : null, booléens, entiers signés 64 bits, flottants finis, chaînes,
-  tableaux et objets.
+  tableaux et objets. Contrairement à YAML, les clés dupliquées d'un objet ne
+  sont pas une erreur : la dernière valeur l'emporte, et les doublons dans les
+  valeurs imbriquées au-delà de `kMaxNestingDepth` restent tels quels dans leur
+  texte JSON. Validez vous-même les entrées non fiables si les doublons
+  importent.
 - YAML : mêmes valeurs que JSON et types scalaires de base YAML 1.2 ; les clés
   sont des chaînes scalaires. Plusieurs documents, ancres répétées, alias
   récursifs, alias se développant en plus de 1 000 000 de valeurs au total et

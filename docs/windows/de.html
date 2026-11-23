@@ -164,8 +164,12 @@ Tags. TOML-Datums-/Zeitwerte und nicht endliche Zahlen werden nicht geladen.
 </p>
 <p>
 Beim Laden von CSV werden ein führendes UTF-8-BOM und Leerzeilen ignoriert;
-ein leerer Wert in einer einspaltigen Datei wird als "" gespeichert, damit
-der Datensatz erhalten bleibt. Dateipfade sind std::string-Werte in UTF-8
+ein leerer Wert oder Spaltenname in einer einspaltigen Datei wird als ""
+gespeichert, damit der Datensatz erhalten bleibt. Anders als bei YAML sind
+doppelte JSON-Objektschlüssel kein Fehler: Der letzte Wert gilt, und
+Duplikate in tiefer als Dataset::kMaxNestingDepth verschachtelten Werten
+bleiben unverändert im JSON-Text. Prüfen Sie nicht vertrauenswürdige
+Eingaben selbst, wenn Duplikate relevant sind. Dateipfade sind std::string-Werte in UTF-8
 auf allen Plattformen, auch unter Windows; die von LoadDirectory
 gelieferten Namen sind ebenfalls UTF-8. Bei der Windows-DLL müssen
 CRT-Variante (/MD oder /MT, Debug oder Release) und _ITERATOR_DEBUG_LEVEL

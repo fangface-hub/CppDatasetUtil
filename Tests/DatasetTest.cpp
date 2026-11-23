@@ -652,6 +652,21 @@ TEST_F(FormatTest, EmptyCsvAndComments) {
 }
 
 /**
+ * @brief Verify a single-column CSV with an empty column name round-trips.
+ * @test The empty header is quoted so it is not read as a blank line.
+ */
+TEST_F(FormatTest, SingleColumnCsvWithEmptyHeaderRoundTrips) {
+  const auto path = Path("empty-header.csv");
+  Dataset data;
+  data.push_back(Dataset::Map{{"", std::string("x")}});
+  data.Save(path);
+  EXPECT_EQ(Read(path), "\"\"\r\nx\r\n");
+  Dataset loaded;
+  loaded.Load(path);
+  EXPECT_EQ(loaded, data);
+}
+
+/**
  * @brief Verify YAML comment placement at root and nested values.
  * @test Check empty, multiline, and UTF-8 comments, escaped keys, and typed
  *     values; reloading preserves values but does not restore comments.

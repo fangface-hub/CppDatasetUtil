@@ -61,9 +61,13 @@ tabelle inline, vengono omessi.
   con sola intestazione diventano array vuoti, salvati come file vuoti senza
   conservare i nomi dell'intestazione. Al caricamento, un BOM UTF-8 iniziale e le
   righe vuote sono ignorati; un valore vuoto in un file a colonna singola è
-  salvato come `""`.
+  salvato come `""`, così come un nome di colonna vuoto.
 - JSON: null, booleani, interi con segno a 64 bit, numeri finiti in virgola
-  mobile, stringhe, array e oggetti.
+  mobile, stringhe, array e oggetti. A differenza di YAML, le chiavi duplicate
+  di un oggetto non sono un errore: prevale l'ultimo valore e i duplicati nei
+  valori annidati oltre `kMaxNestingDepth` restano invariati nel loro testo
+  JSON. Se i duplicati contano, convalidate voi stessi gli input non
+  attendibili.
 - YAML: gli stessi valori JSON e i tipi scalari di base YAML 1.2; le chiavi
   sono stringhe scalari. Documenti multipli, ancore duplicate, alias ricorsivi,
   alias che si espandono in più di 1.000.000 di valori in totale e tag non

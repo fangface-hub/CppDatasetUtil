@@ -133,8 +133,13 @@ récursifs et les balises non prises en charge. Les dates, heures et nombres
 non finis TOML ne sont pas chargés.
 .PP
 Au chargement d'un CSV, un BOM UTF-8 initial et les lignes vides sont
-ignorés ; une valeur vide dans un fichier à une seule colonne est
-enregistrée sous la forme "" afin de conserver l'enregistrement. Les
+ignorés ; une valeur vide ou un nom de colonne vide dans un fichier à une
+seule colonne est enregistré sous la forme "" afin de conserver
+l'enregistrement. Contrairement à YAML, les clés dupliquées d'un objet JSON
+ne sont pas une erreur : la dernière valeur l'emporte, et les doublons dans
+les valeurs imbriquées au-delà de Dataset::kMaxNestingDepth restent tels
+quels dans leur texte JSON. Validez vous-même les entrées non fiables si les
+doublons importent. Les
 chemins de fichiers sont des std::string en UTF-8 sur toutes les
 plateformes, Windows compris, et les noms renvoyés par LoadDirectory sont
 aussi en UTF-8. Avec la DLL Windows, la variante de CRT (/MD ou /MT, Debug

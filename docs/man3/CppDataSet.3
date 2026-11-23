@@ -123,7 +123,11 @@ anchors, recursive aliases and unsupported tags. TOML date/time values and
 non-finite numbers cannot be loaded.
 .PP
 When loading CSV, a leading UTF-8 BOM and blank lines are ignored; an empty
-value in a single-column file is saved as "" so the record is kept. File
+value or empty column name in a single-column file is saved as "" so the
+record is kept. Unlike YAML, JSON duplicate object keys are not an error:
+the last value wins, and duplicates inside values nested deeper than
+Dataset::kMaxNestingDepth stay as-is in their JSON text. Validate untrusted
+input yourself if duplicates matter. File
 paths are std::string values encoded as UTF-8 on every platform, including
 Windows, and the names returned by LoadDirectory are UTF-8. With the
 Windows DLL, the CRT flavor (/MD or /MT, Debug or Release) and
