@@ -25,13 +25,17 @@ MAN_LANGS := ja de fr it ko zh_CN
 STYLE_FILES := $(wildcard Include/*.h Source/*.cpp Tests/*.cpp)
 LIBRARY := build/lib$(LIBNAME).so
 LIBRARY_REAL := $(LIBRARY).0
+STATIC_LIBRARY := build/lib$(LIBNAME).a
+AR ?= ar
 TEST := build/DatasetTest
 YAML_SOURCES := $(wildcard third_party/libyaml/src/*.c)
 YAML_OBJECTS := $(patsubst third_party/libyaml/src/%.c,build/yaml-%.o,$(YAML_SOURCES))
 
-.PHONY: all test doc clean format style-check install deb rpm deb-cxx11 rpm-cxx11 release-package package-test-deb package-test-rpm
+.PHONY: all static test doc clean format style-check install deb rpm deb-cxx11 rpm-cxx11 release-package package-test-deb package-test-rpm
 
 all: $(LIBRARY)
+
+static: $(STATIC_LIBRARY)
 
 build:
 	mkdir -p $@
@@ -45,6 +49,16 @@ $(LIBRARY_REAL): Source/Dataset.cpp Source/Formats.cpp Include/cppdatasetutil.h 
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=$(CXX_STD) -Wall -Wextra -fPIC -shared \
 		-Wl,-soname,lib$(LIBNAME).so.0 \
 		Source/Dataset.cpp Source/Formats.cpp $(YAML_OBJECTS) $(LDFLAGS) -o $@
+
+build/Dataset-static.o: Source/Dataset.cpp Include/cppdatasetutil.h | build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=$(CXX_STD) -Wall -Wextra -fPIC -c $< -o $@
+
+build/Formats-static.o: Source/Formats.cpp Include/cppdatasetutil.h | build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=$(CXX_STD) -Wall -Wextra -fPIC -c $< -o $@
+
+$(STATIC_LIBRARY): build/Dataset-static.o build/Formats-static.o $(YAML_OBJECTS)
+	rm -f $@
+	$(AR) rcs $@ $^
 
 $(LIBRARY): $(LIBRARY_REAL)
 	ln -sfn lib$(LIBNAME).so.0 $@

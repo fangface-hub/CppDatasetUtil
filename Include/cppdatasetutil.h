@@ -53,7 +53,7 @@ using mpark::variant;
 #endif
 }  // namespace cppdatasetutil
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(CPPDATASETUTIL_STATIC)
 #if defined(CPPDATASETUTIL_BUILD)
 #define CPPDATASETUTIL_API __declspec(dllexport)
 #else
