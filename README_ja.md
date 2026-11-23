@@ -77,8 +77,10 @@ UTF-8 を使用し、タブ・改行以外の制御文字や Unicode の行区�
 GoogleTest を実行します。`make doc` で Doxygen の HTML を生成します。
 生成されるドキュメントの Test List には各 GoogleTest ケースの説明も
 含まれます。API の man ページは [docs/](docs/) で管理します。
-ビルドには C コンパイラと C++17 コンパイラ、HTML 文書生成には
+ビルドには C コンパイラと C++11 以降のコンパイラ、HTML 文書生成には
 Doxygen が必要です。
+
+C++11/14 では同梱の `mpark/variant` と `ghc::filesystem` を使い、`Dataset::Value` は `cppdatasetutil::variant` になります。値の取得には `cppdatasetutil::get`、`get_if`、`holds_alternative` を使ってください（C++17 以降では `std::` の関数そのものです）。ライブラリと利用側は同じ言語水準（C++17 以降、または C++11/14）でビルドしてください。Make では `make CXX_STD=c++11` を指定します。
 
 ## Windows DLL とヘルプ
 

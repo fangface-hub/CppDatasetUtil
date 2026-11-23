@@ -64,8 +64,10 @@ TOML 会被拒绝，`Save` 也会拒绝嵌套超过限制的值。
 
 `make` 构建 `build/libcppdatasetutil.so`，`make test` 运行 GoogleTest，
 `make doc` 生成包含测试列表的 Doxygen HTML 文档。API man 页面在
-[docs/](docs/) 中维护。构建需要 C 和 C++17 编译器；生成 HTML 文档需要
+[docs/](docs/) 中维护。构建需要 C 和 C++11 或更高版本的编译器；生成 HTML 文档需要
 Doxygen。
+
+在 C++11/14 下使用随附的 `mpark/variant` 和 `ghc::filesystem`，`Dataset::Value` 为 `cppdatasetutil::variant`。请用 `cppdatasetutil::get`、`get_if`、`holds_alternative` 读取（C++17 及以上即 `std::` 函数）。库与使用方须采用相同语言级别（C++17 及以上，或 C++11/14）；Make 中可指定 `make CXX_STD=c++11`。
 
 ## Windows DLL 和帮助
 

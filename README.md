@@ -80,8 +80,10 @@ Run `make` to build `build/libcppdatasetutil.so`, `make test` to run the
 GoogleTest suite, and `make doc` to generate Doxygen HTML documentation.
 The generated documentation includes a Test List describing each GoogleTest
 case. The API man pages are maintained in [docs/](docs/).
-Building requires a C compiler and a C++17 compiler; generating HTML
+Building requires a C compiler and a C++11 or later compiler; generating HTML
 documentation requires Doxygen.
+
+Under C++11 and C++14 the library uses the bundled `mpark/variant` and `ghc::filesystem`, and `Dataset::Value` is `cppdatasetutil::variant`. Read it with `cppdatasetutil::get`, `get_if` and `holds_alternative`, which are the `std::` functions under C++17 or later. Build the library and its users with the same language level (C++17 or later, or C++11/14). With Make, pass `make CXX_STD=c++11`.
 
 ## Windows DLL and help
 

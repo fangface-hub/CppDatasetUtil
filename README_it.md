@@ -76,7 +76,9 @@ il limite.
 `make` compila `build/libcppdatasetutil.so`, `make test` esegue GoogleTest,
 `make doc` genera la documentazione HTML Doxygen con la lista dei test.
 Le pagine man API sono gestite in [docs/](docs/). La compilazione richiede
-compilatori C e C++17; la documentazione HTML richiede Doxygen.
+compilatori C e C++11 o successivo; la documentazione HTML richiede Doxygen.
+
+Con C++11 e C++14 la libreria usa `mpark/variant` e `ghc::filesystem` inclusi; `Dataset::Value` è `cppdatasetutil::variant`. Leggilo con `cppdatasetutil::get`, `get_if` e `holds_alternative` (da C++17 sono le funzioni `std::`). Compila libreria e utilizzatori con lo stesso livello di linguaggio (C++17 o successivo, oppure C++11/14); con Make: `make CXX_STD=c++11`.
 
 ## DLL Windows e guida
 

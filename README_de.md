@@ -77,7 +77,9 @@ mit Verschachtelung über dem Limit zurück.
 `make` erstellt `build/libcppdatasetutil.so`, `make test` führt GoogleTest aus,
 `make doc` erzeugt die Doxygen-HTML-Dokumentation einschließlich der Testliste.
 Die API-man-Seiten werden in [docs/](docs/) gepflegt. Zum Kompilieren sind C-
-und C++17-Compiler nötig; die HTML-Dokumentation benötigt Doxygen.
+und C++11-Compiler (oder neuer) nötig; die HTML-Dokumentation benötigt Doxygen.
+
+Unter C++11 und C++14 nutzt die Bibliothek die mitgelieferten `mpark/variant` und `ghc::filesystem`; `Dataset::Value` ist dann `cppdatasetutil::variant`. Lesen Sie es mit `cppdatasetutil::get`, `get_if` und `holds_alternative` (ab C++17 sind das die `std::`-Funktionen). Bibliothek und Anwender müssen mit demselben Sprachniveau gebaut werden (C++17 oder neuer bzw. C++11/14); mit Make: `make CXX_STD=c++11`.
 
 ## Windows-DLL und Hilfe
 

@@ -72,8 +72,10 @@ UTF-8입니다.
 `make`는 `build/libcppdatasetutil.so`를 빌드하고 `make test`는
 GoogleTest를 실행합니다. `make doc`은 테스트 목록이 포함된 Doxygen
 HTML을 생성합니다. API man 페이지는 [docs/](docs/)에서 관리합니다.
-빌드에는 C 및 C++17 컴파일러가 필요하며 HTML 문서 생성에는 Doxygen이
+빌드에는 C 및 C++11 이상 컴파일러가 필요하며 HTML 문서 생성에는 Doxygen이
 필요합니다.
+
+C++11/14에서는 포함된 `mpark/variant`와 `ghc::filesystem`을 사용하며 `Dataset::Value`는 `cppdatasetutil::variant`입니다. 값은 `cppdatasetutil::get`, `get_if`, `holds_alternative`로 읽으세요(C++17 이상에서는 `std::` 함수입니다). 라이브러리와 사용 코드는 같은 언어 수준(C++17 이상 또는 C++11/14)으로 빌드해야 하며 Make에서는 `make CXX_STD=c++11`을 지정합니다.
 
 ## Windows DLL 및 도움말
 
