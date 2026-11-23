@@ -51,6 +51,7 @@ std::logic_error，索引越界时抛出 std::out_of_range。替换父 Dataset
 <b>value() const noexcept</b>
 返回 Value 的 const 引用。类型不匹配时，std::get 抛出
 std::bad_variant_access，std::get_if 返回空指针。
+在 C++11/14 下请使用 cppdatasetutil::get、get_if 和 holds_alternative (mpark/variant)。
 </p>
 <p>
 <b>size() const noexcept</b>

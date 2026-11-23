@@ -2,8 +2,13 @@
 
 [English](README.md) | [日本語](README_ja.md) | [Deutsch](README_de.md) | [Français](README_fr.md) | [Italiano](README_it.md) | 한국어 | [简体中文](README_zh.md)
 
-C++17 `Dataset`은 null, 불리언, 64비트 정수, double, 문자열, 맵,
-배열 및 각 값에 연결된 주석을 보유합니다.
+CppDatasetUtil은 CSV, JSON, YAML, TOML 파일을 읽고 쓰는 C++ 라이브러리입니다.
+각 파일은 재귀적인 `Dataset` 객체 구조로 추상화되며, null, 불리언, 64비트 정수,
+double, 문자열, 맵, 배열과 각 값에 연결된 주석을 보유합니다. 파일을 `Dataset`에
+읽어 메모리에서 편집한 뒤 같은 형식 또는 다른 형식으로 저장할 수 있습니다.
+
+C++17(기본) 및 C++11/14 패키지가 제공됩니다.
+[패키지 종류](#패키지-종류)를 참고하세요.
 
 ```cpp
 #include "cppdatasetutil.h"
@@ -72,8 +77,10 @@ UTF-8입니다.
 `make`는 `build/libcppdatasetutil.so`를 빌드하고 `make test`는
 GoogleTest를 실행합니다. `make doc`은 테스트 목록이 포함된 Doxygen
 HTML을 생성합니다. API man 페이지는 [docs/](docs/)에서 관리합니다.
-빌드에는 C 및 C++17 컴파일러가 필요하며 HTML 문서 생성에는 Doxygen이
+빌드에는 C 및 C++11 이상 컴파일러가 필요하며 HTML 문서 생성에는 Doxygen이
 필요합니다.
+
+C++11/14에서는 포함된 `mpark/variant`와 `ghc::filesystem`을 사용하며 `Dataset::Value`는 `cppdatasetutil::variant`입니다. 값은 `cppdatasetutil::get`, `get_if`, `holds_alternative`로 읽으세요(C++17 이상에서는 `std::` 함수입니다). 라이브러리와 사용 코드는 같은 언어 수준(C++17 이상 또는 C++11/14)으로 빌드해야 하며 Make에서는 `make CXX_STD=c++11`을 지정합니다.
 
 ## Windows DLL 및 도움말
 
@@ -213,12 +220,27 @@ TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
 
 ## Linux 패키지
 
+### 패키지 종류
+
+| 패키지 | 언어 수준 | 라이브러리 | 헤더 디렉터리 |
+| --- | --- | --- | --- |
+| `cppdatasetutil` (DEB/RPM, Windows DLL) | C++17 이상 | `libcppdatasetutil.so.0` | `/usr/include` |
+| `cppdatasetutil-cxx11` (DEB/RPM) | C++11, C++14 | `libcppdatasetutil_cxx11.so.0` | `/usr/include/cppdatasetutil-cxx11` |
+
+C++11/14 패키지는 포함된 `mpark/variant`와 `ghc::filesystem`을 사용하며 man
+페이지가 없습니다. 두 패키지는 함께 설치할 수 있습니다. 사용하는 코드도 같은
+언어 수준으로 컴파일하세요. 예:
+`g++ -std=c++11 -I/usr/include/cppdatasetutil-cxx11 app.cpp -lcppdatasetutil_cxx11`.
+Windows DLL은 C++17만 제공됩니다.
+
 대상 시스템의 의존성과 바이너리 ABI에 맞추려면 대상 배포판과
 아키텍처에서 빌드합니다.
 
 ```sh
 make rpm   # rpmbuild, RPM 빌드 도구, tar, C/C++ 도구
 make deb   # dpkg-dev, dpkg-deb, make, C/C++ 도구
+make rpm-cxx11   # C++11/14 패키지
+make deb-cxx11   # C++11/14 패키지
 ```
 
 `dist/`의 패키지에는 공유 라이브러리, 개발용 헤더, 영어·일본어·독일어·

@@ -2,8 +2,14 @@
 
 English | [日本語](README_ja.md) | [Deutsch](README_de.md) | [Français](README_fr.md) | [Italiano](README_it.md) | [한국어](README_ko.md) | [简体中文](README_zh.md)
 
-The C++17 `Dataset` holds null, boolean, 64-bit integer, double, string, map,
-and array values, along with comments associated with each value.
+CppDatasetUtil is a C++ library that reads and writes CSV, JSON, YAML and TOML
+files. Each file is abstracted as a recursive `Dataset` object structure that
+holds null, boolean, 64-bit integer, double, string, map and array values,
+along with comments associated with each value. Load a file into a `Dataset`,
+edit it in memory, and save it to the same or a different format.
+
+It is available as C++17 (default) or C++11/14 packages; see
+[Package variations](#package-variations).
 
 ```cpp
 #include "cppdatasetutil.h"
@@ -80,8 +86,10 @@ Run `make` to build `build/libcppdatasetutil.so`, `make test` to run the
 GoogleTest suite, and `make doc` to generate Doxygen HTML documentation.
 The generated documentation includes a Test List describing each GoogleTest
 case. The API man pages are maintained in [docs/](docs/).
-Building requires a C compiler and a C++17 compiler; generating HTML
+Building requires a C compiler and a C++11 or later compiler; generating HTML
 documentation requires Doxygen.
+
+Under C++11 and C++14 the library uses the bundled `mpark/variant` and `ghc::filesystem`, and `Dataset::Value` is `cppdatasetutil::variant`. Read it with `cppdatasetutil::get`, `get_if` and `holds_alternative`, which are the `std::` functions under C++17 or later. Build the library and its users with the same language level (C++17 or later, or C++11/14). With Make, pass `make CXX_STD=c++11`.
 
 ## Windows DLL and help
 
@@ -223,12 +231,27 @@ The example above is separate: save it as a source file, link it with
 
 ## Linux packages
 
+### Package variations
+
+| Package | Language level | Library | Header directory |
+| --- | --- | --- | --- |
+| `cppdatasetutil` (DEB/RPM, Windows DLL) | C++17 or later | `libcppdatasetutil.so.0` | `/usr/include` |
+| `cppdatasetutil-cxx11` (DEB/RPM) | C++11 and C++14 | `libcppdatasetutil_cxx11.so.0` | `/usr/include/cppdatasetutil-cxx11` |
+
+The C++11/14 package uses the bundled `mpark/variant` and `ghc::filesystem`
+and has no man pages. Both packages can be installed together. Compile code
+with the matching language level, for example
+`g++ -std=c++11 -I/usr/include/cppdatasetutil-cxx11 app.cpp -lcppdatasetutil_cxx11`.
+The Windows DLL is built as C++17 only.
+
 Build on the target distribution and architecture to ensure that the package
 dependencies and binary ABI match the target system:
 
 ```sh
 make rpm   # RPM-based distribution: rpmbuild, RPM build tools, tar, C/C++ tools
 make deb   # Debian-based distribution: dpkg-dev, dpkg-deb, make, C/C++ tools
+make rpm-cxx11   # C++11/14 package
+make deb-cxx11   # C++11/14 package
 ```
 
 Packages are written to `dist/`. Each contains the shared library, development

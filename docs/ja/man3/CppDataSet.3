@@ -73,6 +73,7 @@ std::out_of_range を送出します。
 std::get_if で型を指定して値を取得できます。型が異なる場合、
 std::get は std::bad_variant_access を送出し、std::get_if は
 null ポインターを返します。
+C++11/14 では cppdatasetutil::get、get_if、holds_alternative (mpark/variant) を使います。
 .TP
 .B size() const noexcept
 .ad l

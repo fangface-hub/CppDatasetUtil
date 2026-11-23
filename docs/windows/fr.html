@@ -62,6 +62,7 @@ std::out_of_range. Remplacer le Dataset parent invalide les références
 <b>value() const noexcept</b>
 Renvoie une référence const à Value. Si le type ne correspond pas,
 std::get lève std::bad_variant_access et std::get_if renvoie un pointeur null.
+Sous C++11/14, utilisez cppdatasetutil::get, get_if et holds_alternative (mpark/variant).
 </p>
 <p>
 <b>size() const noexcept</b>

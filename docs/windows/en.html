@@ -60,6 +60,7 @@ its elements.
 <b>value() const noexcept</b>
 Returns a const reference to Value. On a type mismatch, std::get throws
 std::bad_variant_access and std::get_if returns a null pointer.
+Under C++11/14 use cppdatasetutil::get, get_if and holds_alternative (mpark/variant).
 </p>
 <p>
 <b>size() const noexcept</b>

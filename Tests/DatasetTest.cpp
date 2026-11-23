@@ -13,12 +13,18 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <sstream>
 
 #include "cppdatasetutil.h"
+#if CPPDATASETUTIL_CPLUSPLUS_ >= 201703L
+#include <filesystem>
+namespace fs = std::filesystem;
+#else
+#include "ghc/filesystem.hpp"
+namespace fs = ghc::filesystem;
+#endif
 
 namespace {
 
@@ -84,23 +90,28 @@ TEST(DatasetTest, SupportsNestedValues) {
   ASSERT_FALSE(files.empty());
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
-    const auto& cases = std::get<Dataset::Array>(dataset["cases"].value());
+    const auto& cases =
+        cppdatasetutil::get<Dataset::Array>(dataset["cases"].value());
     ASSERT_FALSE(cases.empty());
     for (std::size_t i = 0; i < cases.size(); ++i) {
       SCOPED_TRACE(i);
       const Dataset& input = cases[i]["input"];
       const Dataset& expected = cases[i]["expected"];
       Dataset data;
-      data["server"]["host"] = std::get<std::string>(input["host"].value());
-      data["server"]["port"] = std::get<std::int64_t>(input["port"].value());
-      data["enabled"] = std::get<bool>(input["enabled"].value());
+      data["server"]["host"] =
+          cppdatasetutil::get<std::string>(input["host"].value());
+      data["server"]["port"] =
+          cppdatasetutil::get<std::int64_t>(input["port"].value());
+      data["enabled"] = cppdatasetutil::get<bool>(input["enabled"].value());
       const Dataset& result = data;
-      EXPECT_EQ(std::get<std::string>(result["server"]["host"].value()),
-                std::get<std::string>(expected["host"].value()));
-      EXPECT_EQ(std::get<std::int64_t>(result["server"]["port"].value()),
-                std::get<std::int64_t>(expected["port"].value()));
-      EXPECT_EQ(std::get<bool>(result["enabled"].value()),
-                std::get<bool>(expected["enabled"].value()));
+      EXPECT_EQ(
+          cppdatasetutil::get<std::string>(result["server"]["host"].value()),
+          cppdatasetutil::get<std::string>(expected["host"].value()));
+      EXPECT_EQ(
+          cppdatasetutil::get<std::int64_t>(result["server"]["port"].value()),
+          cppdatasetutil::get<std::int64_t>(expected["port"].value()));
+      EXPECT_EQ(cppdatasetutil::get<bool>(result["enabled"].value()),
+                cppdatasetutil::get<bool>(expected["enabled"].value()));
     }
   }
 }
@@ -119,19 +130,23 @@ TEST(DatasetTest, AccessesArrayValuesFromCases) {
   ASSERT_FALSE(files.empty());
   for (const auto& [path, dataset] : files) {
     SCOPED_TRACE(path);
-    const auto& cases = std::get<Dataset::Array>(dataset["cases"].value());
+    const auto& cases =
+        cppdatasetutil::get<Dataset::Array>(dataset["cases"].value());
     ASSERT_FALSE(cases.empty());
     for (std::size_t i = 0; i < cases.size(); ++i) {
       SCOPED_TRACE(i);
       const Dataset& input = cases[i]["input"];
       const Dataset& expected = cases[i]["expected"];
-      const auto& items = std::get<Dataset::Array>(input["items"].value());
+      const auto& items =
+          cppdatasetutil::get<Dataset::Array>(input["items"].value());
       ASSERT_FALSE(items.empty());
       const Dataset result = items;
-      EXPECT_EQ(std::get<std::string>(result[std::size_t{0}].value()),
-                std::get<std::string>(expected["first"].value()));
-      EXPECT_EQ(std::get<std::string>(result[items.size() - 1].value()),
-                std::get<std::string>(expected["last"].value()));
+      EXPECT_EQ(
+          cppdatasetutil::get<std::string>(result[std::size_t{0}].value()),
+          cppdatasetutil::get<std::string>(expected["first"].value()));
+      EXPECT_EQ(
+          cppdatasetutil::get<std::string>(result[items.size() - 1].value()),
+          cppdatasetutil::get<std::string>(expected["last"].value()));
     }
   }
 }
@@ -144,10 +159,11 @@ TEST(DatasetTest, AccessesArrayValuesFromCases) {
 TEST(DatasetTest, SupportsArraysAndComments) {
   Dataset data = Dataset::Array{Dataset("first"), Dataset(nullptr)};
   data[std::size_t{0}].set_comments({"comment"});
-  EXPECT_EQ(std::get<std::string>(data[std::size_t{0}].value()), "first");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(data[std::size_t{0}].value()),
+            "first");
   EXPECT_EQ(data[std::size_t{0}].comments().at(0), "comment");
-  EXPECT_TRUE(
-      std::holds_alternative<std::nullptr_t>(data[std::size_t{1}].value()));
+  EXPECT_TRUE(cppdatasetutil::holds_alternative<std::nullptr_t>(
+      data[std::size_t{1}].value()));
   EXPECT_THROW(data[std::size_t{2}], std::out_of_range);
 }
 
@@ -180,7 +196,7 @@ TEST(DatasetTest, EditsContainersInPlace) {
   EXPECT_EQ(list.size(), 3u);
   list.erase(std::size_t{0});
   EXPECT_EQ(list.size(), 2u);
-  EXPECT_EQ(std::get<std::string>(list[0].value()), "two");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(list[0].value()), "two");
   EXPECT_THROW(list.erase(std::size_t{2}), std::out_of_range);
   EXPECT_THROW(list.erase("k"), std::logic_error);
 
@@ -200,7 +216,7 @@ TEST(DatasetTest, EditsContainersInPlace) {
   value.set_comments({"note"});
   value.value() = std::string("changed");
   EXPECT_EQ(value.comments().at(0), "note");
-  EXPECT_EQ(std::get<std::string>(value.value()), "changed");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(value.value()), "changed");
 
   Dataset copy = map;
   EXPECT_EQ(copy, map);
@@ -218,7 +234,7 @@ TEST(DatasetTest, EditsContainersInPlace) {
  */
 TEST(DatasetTest, ConstructsFromAnyIntegerType) {
   const auto get = [](const Dataset& data) {
-    return std::get<std::int64_t>(data.value());
+    return cppdatasetutil::get<std::int64_t>(data.value());
   };
   EXPECT_EQ(get(Dataset(-5LL)), -5);
   EXPECT_EQ(get(Dataset(std::size_t{7})), 7);
@@ -228,7 +244,7 @@ TEST(DatasetTest, ConstructsFromAnyIntegerType) {
             std::numeric_limits<std::int64_t>::max());
   EXPECT_THROW(Dataset(std::numeric_limits<std::uint64_t>::max()),
                std::out_of_range);
-  EXPECT_TRUE(std::holds_alternative<bool>(Dataset(true).value()));
+  EXPECT_TRUE(cppdatasetutil::holds_alternative<bool>(Dataset(true).value()));
 }
 
 /**
@@ -253,22 +269,23 @@ TEST_F(FormatTest, JsonAndYamlRoundTripNestedValues) {
     data.Save(path);
     Dataset loaded;
     loaded.Load(path);
-    EXPECT_TRUE(std::holds_alternative<std::nullptr_t>(loaded["null"].value()));
-    EXPECT_TRUE(std::get<bool>(loaded["bool"].value()));
-    EXPECT_EQ(std::get<std::int64_t>(loaded["int"].value()),
+    EXPECT_TRUE(cppdatasetutil::holds_alternative<std::nullptr_t>(
+        loaded["null"].value()));
+    EXPECT_TRUE(cppdatasetutil::get<bool>(loaded["bool"].value()));
+    EXPECT_EQ(cppdatasetutil::get<std::int64_t>(loaded["int"].value()),
               std::numeric_limits<std::int64_t>::min());
-    EXPECT_EQ(std::get<double>(loaded["float"].value()), 1.0);
-    EXPECT_EQ(std::get<double>(loaded["tiny"].value()),
+    EXPECT_EQ(cppdatasetutil::get<double>(loaded["float"].value()), 1.0);
+    EXPECT_EQ(cppdatasetutil::get<double>(loaded["tiny"].value()),
               std::numeric_limits<double>::denorm_min());
-    EXPECT_EQ(std::get<double>(loaded["largest"].value()),
+    EXPECT_EQ(cppdatasetutil::get<double>(loaded["largest"].value()),
               std::numeric_limits<double>::max());
-    EXPECT_TRUE(
-        std::signbit(std::get<double>(loaded["negative_zero"].value())));
-    EXPECT_EQ(std::get<std::string>(loaded["string"].value()),
+    EXPECT_TRUE(std::signbit(
+        cppdatasetutil::get<double>(loaded["negative_zero"].value())));
+    EXPECT_EQ(cppdatasetutil::get<std::string>(loaded["string"].value()),
               "true\n\"hello\"");
-    EXPECT_EQ(
-        std::get<std::string>(loaded["array"][std::size_t{1}]["key"].value()),
-        "value");
+    EXPECT_EQ(cppdatasetutil::get<std::string>(
+                  loaded["array"][std::size_t{1}]["key"].value()),
+              "value");
   }
 }
 
@@ -285,16 +302,18 @@ TEST_F(FormatTest, LoadsYamlScalarsTagsAndAliases) {
         "&key label: *key\n");
   Dataset data;
   data.Load(path);
-  const auto& array = std::get<Dataset::Array>(data["second"].value());
+  const auto& array =
+      cppdatasetutil::get<Dataset::Array>(data["second"].value());
   ASSERT_EQ(array.size(), 7u);
-  EXPECT_TRUE(std::holds_alternative<std::nullptr_t>(array[0].value()));
-  EXPECT_TRUE(std::get<bool>(array[1].value()));
-  EXPECT_EQ(std::get<std::int64_t>(array[2].value()), 16);
-  EXPECT_EQ(std::get<std::int64_t>(array[3].value()), -8);
-  EXPECT_EQ(std::get<double>(array[4].value()), 1.5);
-  EXPECT_EQ(std::get<std::string>(array[5].value()), "false");
-  EXPECT_EQ(std::get<std::string>(array[6].value()), "123");
-  EXPECT_EQ(std::get<std::string>(data["label"].value()), "label");
+  EXPECT_TRUE(
+      cppdatasetutil::holds_alternative<std::nullptr_t>(array[0].value()));
+  EXPECT_TRUE(cppdatasetutil::get<bool>(array[1].value()));
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(array[2].value()), 16);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(array[3].value()), -8);
+  EXPECT_EQ(cppdatasetutil::get<double>(array[4].value()), 1.5);
+  EXPECT_EQ(cppdatasetutil::get<std::string>(array[5].value()), "false");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(array[6].value()), "123");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(data["label"].value()), "label");
 }
 
 /**
@@ -311,10 +330,13 @@ TEST_F(FormatTest, TomlRoundTripAndUnsupportedValues) {
   data.Save(path);
   Dataset loaded;
   loaded.Load(path);
-  EXPECT_EQ(std::get<std::string>(loaded["server"]["host"].value()),
+  EXPECT_EQ(cppdatasetutil::get<std::string>(loaded["server"]["host"].value()),
             "localhost");
-  EXPECT_EQ(std::get<std::int64_t>(loaded["server"]["port"].value()), 8080);
-  EXPECT_EQ(std::get<double>(loaded["items"][std::size_t{1}].value()), 2.5);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(loaded["server"]["port"].value()),
+            8080);
+  EXPECT_EQ(
+      cppdatasetutil::get<double>(loaded["items"][std::size_t{1}].value()),
+      2.5);
   const auto original = Read(path);
   data["unsupported"] = nullptr;
   EXPECT_THROW(data.Save(path), std::runtime_error);
@@ -324,7 +346,8 @@ TEST_F(FormatTest, TomlRoundTripAndUnsupportedValues) {
   EXPECT_EQ(Read(path), original);
   Write(path, "date = 1979-05-27\n");
   EXPECT_THROW(loaded.Load(path), std::runtime_error);
-  EXPECT_EQ(std::get<std::int64_t>(loaded["server"]["port"].value()), 8080);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(loaded["server"]["port"].value()),
+            8080);
   Write(path, "number = inf\n");
   EXPECT_THROW(loaded.Load(path), std::runtime_error);
 }
@@ -339,17 +362,22 @@ TEST_F(FormatTest, CsvHeaderAndQuotedFieldsRoundTrip) {
   Write(path, "name,note\r\nAlice,\"one, \"\"two\"\"\r\nthree\"\r\nBob,\r\n");
   Dataset data;
   data.Load(path);
-  EXPECT_EQ(std::get<std::string>(data[std::size_t{0}]["note"].value()),
-            "one, \"two\"\r\nthree");
-  EXPECT_EQ(std::get<std::string>(data[std::size_t{1}]["note"].value()), "");
+  EXPECT_EQ(
+      cppdatasetutil::get<std::string>(data[std::size_t{0}]["note"].value()),
+      "one, \"two\"\r\nthree");
+  EXPECT_EQ(
+      cppdatasetutil::get<std::string>(data[std::size_t{1}]["note"].value()),
+      "");
   const auto output = Path("output.csv");
   data.Save(output);
   Dataset loaded;
   loaded.Load(output);
-  EXPECT_EQ(std::get<std::string>(loaded[std::size_t{0}]["name"].value()),
-            "Alice");
-  EXPECT_EQ(std::get<std::string>(loaded[std::size_t{0}]["note"].value()),
-            "one, \"two\"\r\nthree");
+  EXPECT_EQ(
+      cppdatasetutil::get<std::string>(loaded[std::size_t{0}]["name"].value()),
+      "Alice");
+  EXPECT_EQ(
+      cppdatasetutil::get<std::string>(loaded[std::size_t{0}]["note"].value()),
+      "one, \"two\"\r\nthree");
 }
 
 /**
@@ -382,7 +410,7 @@ TEST_F(FormatTest, RejectsInvalidInputWithoutChangingDataset) {
     const auto path = Path(input.first);
     Write(path, input.second);
     EXPECT_THROW(data.Load(path), std::runtime_error);
-    EXPECT_EQ(std::get<std::int64_t>(data.value()), 42);
+    EXPECT_EQ(cppdatasetutil::get<std::int64_t>(data.value()), 42);
     EXPECT_EQ(data.comments().at(0), "keep");
   }
   EXPECT_THROW(data.Load(Path("missing.json")), std::runtime_error);
@@ -399,9 +427,10 @@ TEST_F(FormatTest, ResolvesLongYamlScalars) {
   Write(path, "a: " + std::string(4000000, '1') + "x\nb: 1.5e3\nc: -0x1F\n");
   Dataset data;
   data.Load(path);
-  EXPECT_EQ(std::get<std::string>(data["a"].value()).size(), 4000001u);
-  EXPECT_DOUBLE_EQ(std::get<double>(data["b"].value()), 1500.0);
-  EXPECT_EQ(std::get<std::int64_t>(data["c"].value()), -31);
+  EXPECT_EQ(cppdatasetutil::get<std::string>(data["a"].value()).size(),
+            4000001u);
+  EXPECT_DOUBLE_EQ(cppdatasetutil::get<double>(data["b"].value()), 1500.0);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(data["c"].value()), -31);
 }
 
 /**
@@ -420,8 +449,10 @@ TEST_F(FormatTest, RoundTripsLongYamlKeys) {
     data.Save(path);
     Dataset loaded;
     loaded.Load(path);
-    EXPECT_EQ(std::get<std::int64_t>(loaded[long_key]["inner"].value()), 1);
-    EXPECT_EQ(std::get<std::string>(loaded["short"].value()), "v");
+    EXPECT_EQ(
+        cppdatasetutil::get<std::int64_t>(loaded[long_key]["inner"].value()),
+        1);
+    EXPECT_EQ(cppdatasetutil::get<std::string>(loaded["short"].value()), "v");
   }
 }
 
@@ -438,8 +469,8 @@ TEST_F(FormatTest, LoadsCsvWithBomAndBlankLines) {
   Dataset data;
   data.Load(path);
   ASSERT_EQ(data.size(), 2u);
-  EXPECT_EQ(std::get<std::string>(data[0]["a"].value()), "1");
-  EXPECT_EQ(std::get<std::string>(data[1]["b"].value()), "4");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(data[0]["a"].value()), "1");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(data[1]["b"].value()), "4");
 
   Dataset single =
       Dataset::Array{Dataset::Map{{"x", ""}}, Dataset::Map{{"x", "y"}}};
@@ -448,7 +479,7 @@ TEST_F(FormatTest, LoadsCsvWithBomAndBlankLines) {
   Dataset loaded;
   loaded.Load(single_path);
   ASSERT_EQ(loaded.size(), 2u);
-  EXPECT_EQ(std::get<std::string>(loaded[0]["x"].value()), "");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(loaded[0]["x"].value()), "");
 }
 
 /**
@@ -457,7 +488,6 @@ TEST_F(FormatTest, LoadsCsvWithBomAndBlankLines) {
  *     symbolic link.
  */
 TEST_F(FormatTest, SavesAtomically) {
-  namespace fs = std::filesystem;
   const auto path = Path("atomic.json");
   Write(path, "old");
   fs::permissions(path, fs::perms::owner_read | fs::perms::owner_write);
@@ -466,7 +496,7 @@ TEST_F(FormatTest, SavesAtomically) {
   data.Save(path);
   Dataset loaded;
   loaded.Load(path);
-  EXPECT_EQ(std::get<std::int64_t>(loaded["k"].value()), 1);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(loaded["k"].value()), 1);
   EXPECT_EQ(fs::status(path).permissions(),
             fs::perms::owner_read | fs::perms::owner_write);
 
@@ -478,7 +508,7 @@ TEST_F(FormatTest, SavesAtomically) {
     data.Save(link);
     EXPECT_TRUE(fs::is_symlink(link));
     loaded.Load(path);
-    EXPECT_EQ(std::get<std::int64_t>(loaded["k"].value()), 2);
+    EXPECT_EQ(cppdatasetutil::get<std::int64_t>(loaded["k"].value()), 2);
   }
   for (const auto& entry : fs::directory_iterator(fs::path(path).parent_path()))
     EXPECT_EQ(entry.path().string().find(".tmp"), std::string::npos);
@@ -495,9 +525,9 @@ TEST_F(FormatTest, HandlesNonAsciiPaths) {
   data.Save(path);
   Dataset loaded;
   loaded.Load(path);
-  EXPECT_EQ(std::get<std::string>(loaded["k"].value()), "v");
-  const auto listed = Dataset::LoadDirectory(
-      std::filesystem::path(path).parent_path().string());
+  EXPECT_EQ(cppdatasetutil::get<std::string>(loaded["k"].value()), "v");
+  const auto listed =
+      Dataset::LoadDirectory(fs::path(path).parent_path().string());
   ASSERT_FALSE(listed.empty());
   EXPECT_NE(std::find_if(listed.begin(), listed.end(),
                          [&](const auto& item) { return item.first == path; }),
@@ -526,7 +556,7 @@ TEST_F(FormatTest, RejectsYamlAliasBomb) {
 
   Write(path, "a: &a [1, 2]\nb: *a\nc: *a\n");
   data.Load(path);
-  EXPECT_EQ(std::get<Dataset::Array>(data["c"].value()).size(), 2u);
+  EXPECT_EQ(cppdatasetutil::get<Dataset::Array>(data["c"].value()).size(), 2u);
 }
 
 /**
@@ -542,7 +572,8 @@ TEST_F(FormatTest, KeepsDeepNestingAsText) {
   const auto leaf = [](const Dataset& root) {
     const Dataset* node = &root;
     std::size_t levels = 0;
-    while (const auto* array = std::get_if<Dataset::Array>(&node->value())) {
+    while (const auto* array =
+               cppdatasetutil::get_if<Dataset::Array>(&node->value())) {
       node = &(*array)[0];
       ++levels;
     }
@@ -557,7 +588,7 @@ TEST_F(FormatTest, KeepsDeepNestingAsText) {
     data.Load(path);
     const auto [levels, node] = leaf(data);
     EXPECT_EQ(levels, Dataset::kMaxNestingDepth);
-    const auto* text = std::get_if<std::string>(&node->value());
+    const auto* text = cppdatasetutil::get_if<std::string>(&node->value());
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(*text, nested(kLevels - Dataset::kMaxNestingDepth));
     EXPECT_EQ(leaf(Dataset::Parse(*text)).first, Dataset::kMaxNestingDepth);
@@ -569,10 +600,10 @@ TEST_F(FormatTest, KeepsDeepNestingAsText) {
   data.Load(toml);
   const auto [levels, node] = leaf(data["a"]);
   EXPECT_EQ(levels, Dataset::kMaxNestingDepth - 1);
-  EXPECT_EQ(std::get<std::string>(node->value()), nested(300 - 255));
+  EXPECT_EQ(cppdatasetutil::get<std::string>(node->value()), nested(300 - 255));
   Write(toml, "a = " + nested(5000) + "\n");
   EXPECT_THROW(data.Load(toml), std::runtime_error);
-  EXPECT_EQ(std::get<std::string>(leaf(data["a"]).second->value()),
+  EXPECT_EQ(cppdatasetutil::get<std::string>(leaf(data["a"]).second->value()),
             nested(300 - 255));
 
   Dataset too_deep = 1;
@@ -613,11 +644,11 @@ TEST_F(FormatTest, EmptyCsvAndComments) {
   data.Save(path);
   EXPECT_EQ(Read(path), "");
   data.Load(path);
-  EXPECT_TRUE(std::get<Dataset::Array>(data.value()).empty());
+  EXPECT_TRUE(cppdatasetutil::get<Dataset::Array>(data.value()).empty());
   EXPECT_TRUE(data.comments().empty());
   Write(path, "header1,header2\n");
   data.Load(path);
-  EXPECT_TRUE(std::get<Dataset::Array>(data.value()).empty());
+  EXPECT_TRUE(cppdatasetutil::get<Dataset::Array>(data.value()).empty());
 }
 
 /**
@@ -658,15 +689,17 @@ TEST_F(FormatTest, SavesYamlCommentsOnAllValues) {
         std::string::npos);
     Dataset loaded;
     loaded.Load(path);
-    EXPECT_EQ(std::get<std::int64_t>(loaded["items"][std::size_t{0}].value()),
+    EXPECT_EQ(cppdatasetutil::get<std::int64_t>(
+                  loaded["items"][std::size_t{0}].value()),
               1);
-    EXPECT_EQ(
-        std::get<std::string>(loaded["items"][std::size_t{1}]["a\"b"].value()),
-        "text");
-    EXPECT_TRUE(std::holds_alternative<std::nullptr_t>(loaded["null"].value()));
-    EXPECT_EQ(std::get<double>(loaded["real"].value()),
+    EXPECT_EQ(cppdatasetutil::get<std::string>(
+                  loaded["items"][std::size_t{1}]["a\"b"].value()),
+              "text");
+    EXPECT_TRUE(cppdatasetutil::holds_alternative<std::nullptr_t>(
+        loaded["null"].value()));
+    EXPECT_EQ(cppdatasetutil::get<double>(loaded["real"].value()),
               std::numeric_limits<double>::denorm_min());
-    EXPECT_EQ(std::get<std::string>(loaded["literal"].value()),
+    EXPECT_EQ(cppdatasetutil::get<std::string>(loaded["literal"].value()),
               "true\n\"text\"");
     EXPECT_TRUE(loaded.comments().empty());
   }
@@ -677,7 +710,7 @@ TEST_F(FormatTest, SavesYamlCommentsOnAllValues) {
   EXPECT_EQ(Read(path), "# scalar\n\"hello\"\n");
   Dataset loaded;
   loaded.Load(path);
-  EXPECT_EQ(std::get<std::string>(loaded.value()), "hello");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(loaded.value()), "hello");
 }
 
 /**
@@ -709,13 +742,14 @@ TEST_F(FormatTest, SavesTomlCommentsAndSkipsInlineTableMembers) {
   EXPECT_NE(text.find("# table name\nname = "), std::string::npos);
   Dataset loaded;
   loaded.Load(path);
-  EXPECT_EQ(std::get<std::string>(loaded["server"]["host"].value()),
+  EXPECT_EQ(cppdatasetutil::get<std::string>(loaded["server"]["host"].value()),
             "localhost");
-  EXPECT_EQ(std::get<std::int64_t>(loaded["values"][std::size_t{1}].value()),
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(
+                loaded["values"][std::size_t{1}].value()),
             2);
-  EXPECT_EQ(
-      std::get<std::string>(loaded["tables"][std::size_t{0}]["name"].value()),
-      "one");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(
+                loaded["tables"][std::size_t{0}]["name"].value()),
+            "one");
 
   data["tables"].set_comments({"array comment"});
   data.Save(path);
@@ -724,9 +758,9 @@ TEST_F(FormatTest, SavesTomlCommentsAndSkipsInlineTableMembers) {
   EXPECT_NE(inline_text.find("# table element\n"), std::string::npos);
   EXPECT_EQ(inline_text.find("# table name"), std::string::npos);
   loaded.Load(path);
-  EXPECT_EQ(
-      std::get<std::string>(loaded["tables"][std::size_t{0}]["name"].value()),
-      "one");
+  EXPECT_EQ(cppdatasetutil::get<std::string>(
+                loaded["tables"][std::size_t{0}]["name"].value()),
+            "one");
 
   data["mixed"] = Dataset::Array{
       Dataset::Map{{"inner", Dataset::Array{Dataset(4)}}}, Dataset(5)};
@@ -736,7 +770,7 @@ TEST_F(FormatTest, SavesTomlCommentsAndSkipsInlineTableMembers) {
   EXPECT_NE(Read(path).find("# nested array element"), std::string::npos);
   loaded.Load(path);
   EXPECT_EQ(
-      std::get<std::int64_t>(
+      cppdatasetutil::get<std::int64_t>(
           loaded["mixed"][std::size_t{0}]["inner"][std::size_t{0}].value()),
       4);
 }
@@ -769,7 +803,6 @@ TEST_F(FormatTest, RejectsInvalidCommentCharactersBeforeWriting) {
  *     entries, and report warnings.
  */
 TEST_F(FormatTest, LoadsDirectoryWithOptionalRecursionAndSymlinks) {
-  namespace fs = std::filesystem;
   const auto root = Path("data");
   ASSERT_TRUE(fs::create_directory(root));
   const auto sub = Path("data/sub");
@@ -819,16 +852,17 @@ TEST_F(FormatTest, LoadsDirectoryWithOptionalRecursionAndSymlinks) {
   EXPECT_NE(shallow_warnings.find(broken), std::string::npos);
   EXPECT_EQ(shallow_warnings.find("ignored.txt"), std::string::npos);
   auto it = shallow.begin();
-  EXPECT_EQ(std::get<std::string>(it->second[std::size_t{0}]["value"].value()),
+  EXPECT_EQ(cppdatasetutil::get<std::string>(
+                it->second[std::size_t{0}]["value"].value()),
             "first");
   ++it;
-  EXPECT_EQ(std::get<std::int64_t>(it->second.value()), 2);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(it->second.value()), 2);
   ++it;
-  EXPECT_EQ(std::get<std::int64_t>(it->second.value()), 2);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(it->second.value()), 2);
   ++it;
-  EXPECT_EQ(std::get<std::int64_t>(it->second.value()), 3);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(it->second.value()), 3);
   ++it;
-  EXPECT_EQ(std::get<std::int64_t>(it->second["value"].value()), 4);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(it->second["value"].value()), 4);
 
   testing::internal::CaptureStderr();
   const auto linked_root = Dataset::LoadDirectory(root_link, false);
@@ -855,7 +889,7 @@ TEST_F(FormatTest, LoadsDirectoryWithOptionalRecursionAndSymlinks) {
         return entry.first == outside_link + "/outside.json";
       });
   ASSERT_NE(outside, recursive.end());
-  EXPECT_EQ(std::get<std::int64_t>(outside->second.value()), 7);
+  EXPECT_EQ(cppdatasetutil::get<std::int64_t>(outside->second.value()), 7);
 }
 
 /**
@@ -865,7 +899,7 @@ TEST_F(FormatTest, LoadsDirectoryWithOptionalRecursionAndSymlinks) {
  */
 TEST_F(FormatTest, RejectsInvalidRootDirectory) {
   const auto empty = Path("empty");
-  ASSERT_TRUE(std::filesystem::create_directory(empty));
+  ASSERT_TRUE(fs::create_directory(empty));
   EXPECT_TRUE(Dataset::LoadDirectory(empty).empty());
   EXPECT_THROW(Dataset::LoadDirectory(Path("missing")), std::runtime_error);
   const auto file = Path("file.json");

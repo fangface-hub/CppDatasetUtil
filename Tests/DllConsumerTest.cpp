@@ -1,18 +1,17 @@
-#include "cppdatasetutil.h"
-
 #include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <variant>
+
+#include "cppdatasetutil.h"
 
 int main() {
   namespace fs = std::filesystem;
-  const auto name = "cppdatasetutil-consumer-" +
-                    std::to_string(std::chrono::steady_clock::now()
-                                       .time_since_epoch()
-                                       .count());
+  const auto name =
+      "cppdatasetutil-consumer-" +
+      std::to_string(
+          std::chrono::steady_clock::now().time_since_epoch().count());
   const auto directory = fs::temp_directory_path() / name;
   bool created = false;
   try {
@@ -29,17 +28,18 @@ int main() {
       data.Save(path);
       Dataset loaded;
       loaded.Load(path);
-      if (std::get<std::string>(loaded["server"]["host"].value()) !=
+      if (cppdatasetutil::get<std::string>(loaded["server"]["host"].value()) !=
               "localhost" ||
-          std::get<std::int64_t>(loaded["server"]["port"].value()) != 8080)
+          cppdatasetutil::get<std::int64_t>(loaded["server"]["port"].value()) !=
+              8080)
         throw std::runtime_error("Round-trip failed");
     }
     Dataset csv = Dataset::Array{Dataset::Map{{"name", "item"}}};
     csv.Save((directory / "config.csv").string());
     Dataset loaded_csv;
     loaded_csv.Load((directory / "config.csv").string());
-    if (std::get<std::string>(loaded_csv[std::size_t{0}]["name"].value()) !=
-        "item")
+    if (cppdatasetutil::get<std::string>(
+            loaded_csv[std::size_t{0}]["name"].value()) != "item")
       throw std::runtime_error("CSV round-trip failed");
     if (Dataset::LoadDirectory(directory.string()).size() != 4)
       throw std::runtime_error("Directory loading failed");
@@ -49,8 +49,8 @@ int main() {
     } catch (const std::runtime_error&) {
       threw = true;
     }
-    if (!threw || std::get<std::string>(data["server"]["host"].value()) !=
-                      "localhost")
+    if (!threw || cppdatasetutil::get<std::string>(
+                      data["server"]["host"].value()) != "localhost")
       throw std::runtime_error("Load failure did not preserve the value");
     fs::remove_all(directory);
   } catch (const std::exception& error) {

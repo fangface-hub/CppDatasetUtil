@@ -44,6 +44,7 @@ its elements.
 .B value() const noexcept
 Returns a const reference to Value. On a type mismatch, std::get throws
 std::bad_variant_access and std::get_if returns a null pointer.
+Under C++11/14 use cppdatasetutil::get, get_if and holds_alternative (mpark/variant).
 .TP
 .B size() const noexcept
 Returns the number of entries of a map or array, and 0 for any other value.
