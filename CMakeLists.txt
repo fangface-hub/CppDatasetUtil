@@ -28,6 +28,25 @@ if(MSVC)
   target_compile_definitions(cppdatasetutil PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
+# Static library; the output name matches the DLL import library, so it is kept in its own directory
+if(MSVC)
+  add_library(cppdatasetutil_static STATIC $<TARGET_PROPERTY:cppdatasetutil,SOURCES>)
+  set_target_properties(cppdatasetutil_static PROPERTIES
+    OUTPUT_NAME cppdatasetutil
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/static)
+  target_compile_features(cppdatasetutil_static PUBLIC cxx_std_${CPPDATASETUTIL_CXX_STANDARD})
+  target_compile_definitions(cppdatasetutil_static PUBLIC CPPDATASETUTIL_STATIC)
+  target_include_directories(cppdatasetutil_static
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Include>
+    PRIVATE third_party/json third_party/ghc_filesystem third_party/toml11 third_party/libyaml/include
+  )
+  target_compile_definitions(cppdatasetutil_static PRIVATE
+    CPPDATASETUTIL_BUILD YAML_DECLARE_STATIC _CRT_SECURE_NO_WARNINGS
+    YAML_VERSION_STRING="0.2.5"
+    YAML_VERSION_MAJOR=0 YAML_VERSION_MINOR=2 YAML_VERSION_PATCH=5
+  )
+endif()
+
 include(CTest)
 if(BUILD_TESTING AND CPPDATASETUTIL_CXX_STANDARD GREATER_EQUAL 17)
   add_executable(dll_consumer_test Tests/DllConsumerTest.cpp)

@@ -66,6 +66,10 @@ jobs:
           PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           make deb deb-cxx11
+          make static
+          make VARIANT=cxx11 static
+          mkdir -p dist/static
+          cp build/libcppdatasetutil.a build/libcppdatasetutil_cxx11.a dist/static/
           for package in dist/*.deb; do
             dpkg-deb --info "$package"
           done
@@ -73,6 +77,11 @@ jobs:
         with:
           name: deb-package
           path: dist/*.deb
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: static-library
+          path: dist/static/*.a
           if-no-files-found: error
 
   rpm:
@@ -154,8 +163,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $sdk = Join-Path $env:RUNNER_TEMP 'cppdatasetutil-sdk'
           New-Item -ItemType Directory -Path windows-release, $sdk, "$sdk\licenses" | Out-Null
-          Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\help\CppDatasetUtil.chm windows-release
+          Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\static\Release\cppdatasetutil.lib, build-windows\help\CppDatasetUtil.chm windows-release
           Copy-Item build-windows\Release\cppdatasetutil.dll, build-windows\Release\cppdatasetutil.lib, Include\cppdatasetutil.h, build-windows\help\CppDatasetUtil.chm $sdk
+          New-Item -ItemType Directory -Path "$sdk\static" | Out-Null
+          Copy-Item build-windows\static\Release\cppdatasetutil.lib "$sdk\static"
           Copy-Item LICENSE "$sdk\licenses\cppdatasetutil-LICENSE"
           Copy-Item third_party\json\LICENSE.MIT "$sdk\licenses\json-LICENSE"
           Copy-Item third_party\libyaml\License "$sdk\licenses\libyaml-LICENSE"
@@ -188,6 +199,10 @@ jobs:
         with:
           name: rpm-package
           path: packages/rpm
+      - uses: actions/download-artifact@v4
+        with:
+          name: static-library
+          path: packages/static
       - uses: actions/download-artifact@v4
         with:
           name: windows-package
@@ -225,6 +240,7 @@ jobs:
             git log --format='- %s (%h)' "$range"
           } > "$RUNNER_TEMP/release-notes.md"
           gh release create "$RELEASE_TAG" packages/deb/*.deb packages/rpm/*.rpm \
-            packages/windows/cppdatasetutil.dll packages/windows/CppDatasetUtil.chm \
+            packages/windows/cppdatasetutil.dll packages/windows/cppdatasetutil.lib \
+            packages/windows/CppDatasetUtil.chm packages/static/*.a \
             packages/windows/*.zip \
             --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
