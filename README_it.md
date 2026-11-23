@@ -2,8 +2,14 @@
 
 [English](README.md) | [日本語](README_ja.md) | [Deutsch](README_de.md) | [Français](README_fr.md) | Italiano | [한국어](README_ko.md) | [简体中文](README_zh.md)
 
-In C++17, `Dataset` contiene null, booleani, interi a 64 bit, double, stringhe,
-mappe e array, oltre ai commenti associati ai singoli valori.
+CppDatasetUtil è una libreria C++ che legge e scrive file CSV, JSON, YAML e TOML.
+Ogni file è astratto in una struttura di oggetti `Dataset` ricorsiva che contiene
+null, booleani, interi a 64 bit, double, stringhe, mappe e array, oltre ai commenti
+associati ai singoli valori. Si carica un file in un `Dataset`, lo si modifica in
+memoria e lo si salva nello stesso formato o in un altro.
+
+Sono disponibili pacchetti C++17 (predefinito) e C++11/14; vedi
+[Varianti dei pacchetti](#varianti-dei-pacchetti).
 
 ```cpp
 #include "cppdatasetutil.h"
@@ -219,12 +225,27 @@ radice del progetto. Salvare l'esempio separatamente, collegarlo con
 
 ## Pacchetti Linux
 
+### Varianti dei pacchetti
+
+| Pacchetto | Livello del linguaggio | Libreria | Directory degli header |
+| --- | --- | --- | --- |
+| `cppdatasetutil` (DEB/RPM, DLL Windows) | C++17 o successivo | `libcppdatasetutil.so.0` | `/usr/include` |
+| `cppdatasetutil-cxx11` (DEB/RPM) | C++11 e C++14 | `libcppdatasetutil_cxx11.so.0` | `/usr/include/cppdatasetutil-cxx11` |
+
+Il pacchetto C++11/14 usa `mpark/variant` e `ghc::filesystem` inclusi e non ha
+pagine man. I due pacchetti possono essere installati insieme. Compila il codice
+con lo stesso livello di linguaggio, ad esempio
+`g++ -std=c++11 -I/usr/include/cppdatasetutil-cxx11 app.cpp -lcppdatasetutil_cxx11`.
+La DLL Windows esiste solo in C++17.
+
 Compilare sulla distribuzione e architettura di destinazione per ottenere
 dipendenze e ABI corrette:
 
 ```sh
 make rpm   # rpmbuild, strumenti RPM, tar, strumenti C/C++
 make deb   # dpkg-dev, dpkg-deb, make, strumenti C/C++
+make rpm-cxx11   # pacchetto C++11/14
+make deb-cxx11   # pacchetto C++11/14
 ```
 
 I pacchetti in `dist/` contengono la libreria condivisa, l'header di sviluppo, le

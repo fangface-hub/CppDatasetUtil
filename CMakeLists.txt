@@ -13,7 +13,8 @@ add_library(cppdatasetutil SHARED
   third_party/libyaml/src/scanner.c
   third_party/libyaml/src/writer.c
 )
-target_compile_features(cppdatasetutil PUBLIC cxx_std_11)
+set(CPPDATASETUTIL_CXX_STANDARD 17 CACHE STRING "C++ standard (11, 14 or 17+) for the library and its users")
+target_compile_features(cppdatasetutil PUBLIC cxx_std_${CPPDATASETUTIL_CXX_STANDARD})
 target_include_directories(cppdatasetutil
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Include>
   PRIVATE third_party/json third_party/ghc_filesystem third_party/toml11 third_party/libyaml/include
@@ -28,9 +29,8 @@ if(MSVC)
 endif()
 
 include(CTest)
-if(BUILD_TESTING)
+if(BUILD_TESTING AND CPPDATASETUTIL_CXX_STANDARD GREATER_EQUAL 17)
   add_executable(dll_consumer_test Tests/DllConsumerTest.cpp)
-  target_compile_features(dll_consumer_test PRIVATE cxx_std_17)
   target_link_libraries(dll_consumer_test PRIVATE cppdatasetutil)
   add_test(NAME dll_consumer COMMAND dll_consumer_test)
 endif()

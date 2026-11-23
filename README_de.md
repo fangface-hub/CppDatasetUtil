@@ -2,8 +2,15 @@
 
 [English](README.md) | [日本語](README_ja.md) | Deutsch | [Français](README_fr.md) | [Italiano](README_it.md) | [한국어](README_ko.md) | [简体中文](README_zh.md)
 
-`Dataset` für C++17 enthält null, boolesche Werte, 64-Bit-Ganzzahlen, double,
-Zeichenketten, Maps und Arrays sowie Kommentare zu einzelnen Werten.
+CppDatasetUtil ist eine C++-Bibliothek zum Lesen und Schreiben von CSV-, JSON-,
+YAML- und TOML-Dateien. Jede Datei wird als rekursive `Dataset`-Objektstruktur
+abstrahiert, die null, boolesche Werte, 64-Bit-Ganzzahlen, double, Zeichenketten,
+Maps und Arrays sowie Kommentare zu einzelnen Werten enthält. Eine Datei wird in
+ein `Dataset` geladen, im Speicher bearbeitet und im selben oder einem anderen
+Format gespeichert.
+
+Es gibt Pakete für C++17 (Standard) und für C++11/14; siehe
+[Paketvarianten](#paketvarianten).
 
 ```cpp
 #include "cppdatasetutil.h"
@@ -221,12 +228,28 @@ Projektverzeichnis ausführen.
 
 ## Linux-Pakete
 
+### Paketvarianten
+
+| Paket | Sprachniveau | Bibliothek | Header-Verzeichnis |
+| --- | --- | --- | --- |
+| `cppdatasetutil` (DEB/RPM, Windows-DLL) | C++17 oder neuer | `libcppdatasetutil.so.0` | `/usr/include` |
+| `cppdatasetutil-cxx11` (DEB/RPM) | C++11 und C++14 | `libcppdatasetutil_cxx11.so.0` | `/usr/include/cppdatasetutil-cxx11` |
+
+Das C++11/14-Paket nutzt die mitgelieferten `mpark/variant` und
+`ghc::filesystem` und enthält keine Man-Pages. Beide Pakete lassen sich
+gemeinsam installieren. Der eigene Code muss mit dem passenden Sprachniveau
+übersetzt werden, z. B.
+`g++ -std=c++11 -I/usr/include/cppdatasetutil-cxx11 app.cpp -lcppdatasetutil_cxx11`.
+Die Windows-DLL gibt es nur als C++17.
+
 Auf der Zieldistribution und -architektur bauen, damit ABI und Abhängigkeiten
 passen:
 
 ```sh
 make rpm   # rpmbuild, RPM-Werkzeuge, tar, C/C++-Werkzeuge
 make deb   # dpkg-dev, dpkg-deb, make, C/C++-Werkzeuge
+make rpm-cxx11   # C++11/14-Paket
+make deb-cxx11   # C++11/14-Paket
 ```
 
 Die Pakete in `dist/` enthalten die Shared Library, den Entwicklungs-Header, die

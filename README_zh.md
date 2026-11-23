@@ -2,8 +2,12 @@
 
 [English](README.md) | [日本語](README_ja.md) | [Deutsch](README_de.md) | [Français](README_fr.md) | [Italiano](README_it.md) | [한국어](README_ko.md) | 简体中文
 
-C++17 `Dataset` 可保存 null、布尔值、64 位整数、double、字符串、映射、
-数组以及与各个值关联的注释。
+CppDatasetUtil 是读写 CSV、JSON、YAML 和 TOML 文件的 C++ 库。每个文件都被抽象为
+递归的 `Dataset` 对象结构，可保存 null、布尔值、64 位整数、double、字符串、映射、
+数组以及与各个值关联的注释。可将文件加载为 `Dataset`，在内存中编辑，再以相同或
+其他格式保存。
+
+提供 C++17（默认）和 C++11/14 两种软件包，参见[软件包版本](#软件包版本)。
 
 ```cpp
 #include "cppdatasetutil.h"
@@ -200,11 +204,25 @@ TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
 
 ## Linux 软件包
 
+### 软件包版本
+
+| 软件包 | 语言级别 | 库 | 头文件目录 |
+| --- | --- | --- | --- |
+| `cppdatasetutil`（DEB/RPM、Windows DLL） | C++17 及以上 | `libcppdatasetutil.so.0` | `/usr/include` |
+| `cppdatasetutil-cxx11`（DEB/RPM） | C++11、C++14 | `libcppdatasetutil_cxx11.so.0` | `/usr/include/cppdatasetutil-cxx11` |
+
+C++11/14 软件包使用随附的 `mpark/variant` 和 `ghc::filesystem`，不含 man 页面。
+两个软件包可同时安装。使用方代码须采用相同的语言级别编译，例如
+`g++ -std=c++11 -I/usr/include/cppdatasetutil-cxx11 app.cpp -lcppdatasetutil_cxx11`。
+Windows DLL 仅提供 C++17 版本。
+
 请在目标发行版和架构上构建，以确保依赖关系和二进制 ABI 与目标系统匹配：
 
 ```sh
 make rpm   # rpmbuild、RPM 构建工具、tar、C/C++ 工具
 make deb   # dpkg-dev、dpkg-deb、make、C/C++ 工具
+make rpm-cxx11   # C++11/14 软件包
+make deb-cxx11   # C++11/14 软件包
 ```
 
 `dist/` 中的软件包包含共享库、开发头文件、英语、日语、德语、法语、意大利语、

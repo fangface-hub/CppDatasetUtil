@@ -2,8 +2,15 @@
 
 [English](README.md) | [日本語](README_ja.md) | [Deutsch](README_de.md) | Français | [Italiano](README_it.md) | [한국어](README_ko.md) | [简体中文](README_zh.md)
 
-En C++17, `Dataset` contient null, des booléens, des entiers 64 bits, des
-double, chaînes, tables et tableaux, ainsi que des commentaires par valeur.
+CppDatasetUtil est une bibliothèque C++ qui lit et écrit des fichiers CSV, JSON,
+YAML et TOML. Chaque fichier est abstrait en une structure d'objets `Dataset`
+récursive contenant null, des booléens, des entiers 64 bits, des double, des
+chaînes, des tables et des tableaux, avec les commentaires de chaque valeur. On
+charge un fichier dans un `Dataset`, on le modifie en mémoire, puis on l'enregistre
+dans le même format ou dans un autre.
+
+Des paquets C++17 (par défaut) et C++11/14 sont fournis ; voir
+[Variantes de paquets](#variantes-de-paquets).
 
 ```cpp
 #include "cppdatasetutil.h"
@@ -221,12 +228,27 @@ l'exécuter à la racine du projet.
 
 ## Paquets Linux
 
+### Variantes de paquets
+
+| Paquet | Niveau de langage | Bibliothèque | Répertoire des en-têtes |
+| --- | --- | --- | --- |
+| `cppdatasetutil` (DEB/RPM, DLL Windows) | C++17 ou ultérieur | `libcppdatasetutil.so.0` | `/usr/include` |
+| `cppdatasetutil-cxx11` (DEB/RPM) | C++11 et C++14 | `libcppdatasetutil_cxx11.so.0` | `/usr/include/cppdatasetutil-cxx11` |
+
+Le paquet C++11/14 utilise `mpark/variant` et `ghc::filesystem` fournis et n'a
+pas de pages man. Les deux paquets peuvent être installés ensemble. Compilez le
+code au même niveau de langage, par exemple
+`g++ -std=c++11 -I/usr/include/cppdatasetutil-cxx11 app.cpp -lcppdatasetutil_cxx11`.
+La DLL Windows n'existe qu'en C++17.
+
 Construire sur la distribution et l'architecture cibles pour obtenir les
 bonnes dépendances et la bonne ABI :
 
 ```sh
 make rpm   # rpmbuild, outils RPM, tar, outils C/C++
 make deb   # dpkg-dev, dpkg-deb, make, outils C/C++
+make rpm-cxx11   # paquet C++11/14
+make deb-cxx11   # paquet C++11/14
 ```
 
 Les paquets dans `dist/` contiennent la bibliothèque partagée, l'en-tête de

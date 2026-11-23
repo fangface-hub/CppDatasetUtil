@@ -2,8 +2,14 @@
 
 [English](README.md) | 日本語 | [Deutsch](README_de.md) | [Français](README_fr.md) | [Italiano](README_it.md) | [한국어](README_ko.md) | [简体中文](README_zh.md)
 
-C++17 の `Dataset` は null、真偽値、64 ビット整数、double、文字列、
-マップ、配列と、値に関連付けられたコメントを保持します。
+CppDatasetUtil は CSV、JSON、YAML、TOML ファイルを読み書きする C++ ライブラリです。
+ファイルは再帰的な `Dataset` オブジェクト構造として抽象化され、null、真偽値、
+64 ビット整数、double、文字列、マップ、配列と、各値に関連付けられたコメントを
+保持します。ファイルを `Dataset` に読み込み、メモリ上で編集し、同じ形式または
+別の形式で保存できます。
+
+C++17 版（既定）と C++11/14 版のパッケージがあります。
+[パッケージバリエーション](#パッケージバリエーション)を参照してください。
 
 ```cpp
 #include "cppdatasetutil.h"
@@ -223,12 +229,27 @@ TEST(ServerConfigTest, BuildsEndpointAndStoresEnabledState) {
 
 ## Linux パッケージ
 
+### パッケージバリエーション
+
+| パッケージ | 言語水準 | ライブラリ | ヘッダーのディレクトリ |
+| --- | --- | --- | --- |
+| `cppdatasetutil`（DEB/RPM、Windows DLL） | C++17 以降 | `libcppdatasetutil.so.0` | `/usr/include` |
+| `cppdatasetutil-cxx11`（DEB/RPM） | C++11、C++14 | `libcppdatasetutil_cxx11.so.0` | `/usr/include/cppdatasetutil-cxx11` |
+
+C++11/14 版は同梱の `mpark/variant` と `ghc::filesystem` を使い、man ページは
+含みません。両パッケージは同時にインストールできます。利用側も同じ言語水準で
+コンパイルしてください。例:
+`g++ -std=c++11 -I/usr/include/cppdatasetutil-cxx11 app.cpp -lcppdatasetutil_cxx11`。
+Windows DLL は C++17 版のみです。
+
 パッケージの依存関係とバイナリ ABI を対象環境に合わせるため、対象の
 ディストリビューションとアーキテクチャ上でビルドします。
 
 ```sh
 make rpm   # RPM 系: rpmbuild、RPM ビルドツール、tar、C/C++ コンパイラ
 make deb   # Debian 系: dpkg-dev、dpkg-deb、make、C/C++ コンパイラ
+make rpm-cxx11   # C++11/14 版
+make deb-cxx11   # C++11/14 版
 ```
 
 パッケージは `dist/` に生成され、共有ライブラリ、開発用ヘッダー、API の
