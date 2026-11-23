@@ -25,7 +25,8 @@ std::invalid_argument.
 .PP
 Any other integer type, such as long long, std::size_t or unsigned, is
 stored as a signed 64-bit integer; an unsigned value above the int64 range
-throws std::out_of_range. Pointers other than const char* are rejected at
+is stored as an unsigned 64-bit integer (std::uint64_t), up to 2^64-1. Such
+values can be saved as JSON and YAML but not TOML. Pointers other than const char* are rejected at
 compile time instead of becoming bool.
 .SH ACCESS
 .TP

@@ -31,8 +31,8 @@ std::int64_t、double、const char*、std::string、Map 和 Array 构造。
 向 const char* 传入空指针会抛出 std::invalid_argument。
 </p>
 <p>
-其他整数类型（如 long long、std::size_t 或 unsigned）会保存为有符号 64 位整数；超出 int64 范围的无符号值会抛出
-std::out_of_range。除 const char* 外的指针不会转换为 bool，而是在编译时被拒绝。
+其他整数类型（如 long long、std::size_t 或 unsigned）会保存为有符号 64 位整数；超出 int64 范围的无符号值会保存为
+无符号 64 位整数（std::uint64_t），最大为 2^64-1；此类值可保存为 JSON 和 YAML，但不能保存为 TOML。除 const char* 外的指针不会转换为 bool，而是在编译时被拒绝。
 </p>
 <h2>访问</h2>
 <p>

@@ -65,7 +65,7 @@ sont omis.
   les noms de l'en-tête. Au chargement, un BOM UTF-8 initial et les lignes vides
   sont ignorés ; une valeur vide dans un fichier à une colonne est enregistrée
   sous la forme `""`, de même qu'un nom de colonne vide.
-- JSON : null, booléens, entiers signés 64 bits, flottants finis, chaînes,
+- JSON : null, booléens, entiers signés 64 bits (et non signés jusqu'à 2^64-1), flottants finis, chaînes,
   tableaux et objets. Contrairement à YAML, les clés dupliquées d'un objet ne
   sont pas une erreur : la dernière valeur l'emporte, et les doublons dans les
   valeurs imbriquées au-delà de `kMaxNestingDepth` restent tels quels dans leur

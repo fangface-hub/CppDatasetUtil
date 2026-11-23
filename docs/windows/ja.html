@@ -45,7 +45,7 @@ null、bool、std::int64_t、double、std::string、Map、Array を
 </p>
 <p>
 long long、std::size_t、unsigned などその他の整数型は、符号付き 64 ビット整数として保持されます。int64
-の範囲を超える符号なし値は std::out_of_range を送出します。const char* 以外のポインターは bool
+の範囲を超える符号なし値は、2^64-1 まで符号なし 64 ビット整数（std::uint64_t）として保持されます。この値は JSON と YAML には保存できますが、TOML には保存できません。const char* 以外のポインターは bool
 に変換されず、コンパイル時にエラーになります。
 </p>
 <h2>コンストラクター</h2>

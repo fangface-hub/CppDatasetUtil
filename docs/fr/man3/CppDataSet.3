@@ -26,7 +26,8 @@ null pour const char* provoque std::invalid_argument.
 .PP
 Tout autre type entier, comme long long, std::size_t ou unsigned, est stocké
 comme entier signé 64 bits ; une valeur non signée au-delà de la plage int64
-provoque std::out_of_range. Les pointeurs autres que const char* sont
+est stockée comme entier non signé 64 bits (std::uint64_t) jusqu'à 2^64-1 ;
+une telle valeur peut être enregistrée en JSON et YAML, mais pas en TOML. Les pointeurs autres que const char* sont
 rejetés à la compilation au lieu de devenir bool.
 .SH ACCÈS
 .TP

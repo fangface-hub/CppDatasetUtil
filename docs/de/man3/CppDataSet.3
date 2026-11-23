@@ -26,7 +26,9 @@ Array. Ein null-Zeiger für const char* führt zu std::invalid_argument.
 .PP
 Jeder andere Ganzzahltyp, etwa long long, std::size_t oder unsigned, wird
 als vorzeichenbehaftete 64-Bit-Ganzzahl gespeichert; ein vorzeichenloser
-Wert über dem int64-Bereich führt zu std::out_of_range. Andere Zeiger als
+Wert über dem int64-Bereich wird als vorzeichenlose 64-Bit-Ganzzahl
+(std::uint64_t) bis 2^64-1 gespeichert; solche Werte lassen sich in JSON und
+YAML, aber nicht in TOML speichern. Andere Zeiger als
 const char* werden zur Compilezeit abgelehnt, statt zu bool zu werden.
 .SH ZUGRIFF
 .TP

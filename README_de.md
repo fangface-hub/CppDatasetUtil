@@ -64,7 +64,7 @@ können, etwa innerhalb von Inline-Tabellen, werden ausgelassen.
   Array; dieses wird als leere Datei gespeichert, ohne die Kopfzeile zu erhalten.
   Beim Laden werden ein führendes UTF-8-BOM und Leerzeilen ignoriert; ein leerer
   Wert oder Spaltenname in einer einspaltigen Datei wird als `""` gespeichert.
-- JSON: null, bool, vorzeichenbehaftete 64-Bit-Ganzzahlen, endliche
+- JSON: null, bool, vorzeichenbehaftete 64-Bit-Ganzzahlen (und vorzeichenlose bis 2^64-1), endliche
   Gleitkommazahlen, Zeichenketten, Arrays und Objekte. Anders als bei YAML sind
   doppelte Objektschlüssel kein Fehler: Der letzte Wert gilt, und Duplikate in
   tiefer als `kMaxNestingDepth` verschachtelten Werten bleiben unverändert im
