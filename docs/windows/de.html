@@ -62,6 +62,7 @@ seine Elemente ungültig.
 <b>value() const noexcept</b>
 Liefert eine const-Referenz auf Value. std::get wirft bei falschem Typ
 std::bad_variant_access; std::get_if liefert dann einen null-Zeiger.
+Unter C++11/14 cppdatasetutil::get, get_if und holds_alternative (mpark/variant) verwenden.
 </p>
 <p>
 <b>size() const noexcept</b>

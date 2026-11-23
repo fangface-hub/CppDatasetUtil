@@ -55,6 +55,7 @@ long long, std::size_t, unsigned 등 그 밖의 정수 타입은 부호 있는 6
 <b>value() const noexcept</b>
 Value에 대한 const 참조를 반환합니다. 타입이 다르면 std::get은
 std::bad_variant_access를 발생시키고 std::get_if는 null 포인터를 반환합니다.
+C++11/14에서는 cppdatasetutil::get, get_if, holds_alternative(mpark/variant)를 사용하세요.
 </p>
 <p>
 <b>size() const noexcept</b>

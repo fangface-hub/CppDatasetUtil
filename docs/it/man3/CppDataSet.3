@@ -46,6 +46,7 @@ ai suoi elementi.
 .B value() const noexcept
 Restituisce un riferimento const a Value. Se il tipo non corrisponde,
 std::get genera std::bad_variant_access e std::get_if restituisce null.
+Con C++11/14 usare cppdatasetutil::get, get_if e holds_alternative (mpark/variant).
 .TP
 .B size() const noexcept
 Restituisce il numero di voci di una mappa o di un array, e 0 per qualsiasi

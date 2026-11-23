@@ -46,6 +46,7 @@ seine Elemente ungültig.
 .B value() const noexcept
 Liefert eine const-Referenz auf Value. std::get wirft bei falschem Typ
 std::bad_variant_access; std::get_if liefert dann einen null-Zeiger.
+Unter C++11/14 cppdatasetutil::get, get_if und holds_alternative (mpark/variant) verwenden.
 .TP
 .B size() const noexcept
 Liefert die Anzahl der Einträge einer Map oder eines Arrays, für jeden
