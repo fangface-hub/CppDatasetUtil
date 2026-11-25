@@ -176,6 +176,15 @@ CSV の読み込みでは、先頭の UTF-8 BOM と空行を無視します。1 
 Dataset::kMaxNestingDepth（256）より深くネストしたマップと配列はツリーとしては読み込まれず、コンパクトな JSON
 テキストを保持する文字列になり、Parse で変換できます。これらの値の内部では YAML のアンカーを定義できず、上限の 2 倍を超える TOML
 は拒否され、Save は上限を超える値を拒否します。合計 1,000,000 個を超える値に展開される YAML の別名はエラーです。
+.PP
+CSV の例（カンマ、引用符、改行を含むフィールドは " で囲み、内部の " は "" と書きます）:
+.PP
+.nf
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+.fi
 .SH 使用例
 .nf
 #include <cppdatasetutil.h>

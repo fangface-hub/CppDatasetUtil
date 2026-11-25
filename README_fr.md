@@ -65,6 +65,16 @@ sont omis.
   les noms de l'en-tête. Au chargement, un BOM UTF-8 initial et les lignes vides
   sont ignorés ; une valeur vide dans un fichier à une colonne est enregistrée
   sous la forme `""`, de même qu'un nom de colonne vide.
+  Exemple (mettre entre guillemets les champs contenant virgules, guillemets
+  ou sauts de ligne, et doubler les guillemets internes) :
+
+  ```csv
+  name,age,note
+  Alice,30,"one, ""two""
+  three"
+  Bob,25,
+  ```
+
 - JSON : null, booléens, entiers signés 64 bits (et non signés jusqu'à 2^64-1), flottants finis, chaînes,
   tableaux et objets. Contrairement à YAML, les clés dupliquées d'un objet ne
   sont pas une erreur : la dernière valeur l'emporte, et les doublons dans les

@@ -62,6 +62,16 @@ tabelle inline, vengono omessi.
   conservare i nomi dell'intestazione. Al caricamento, un BOM UTF-8 iniziale e le
   righe vuote sono ignorati; un valore vuoto in un file a colonna singola è
   salvato come `""`, così come un nome di colonna vuoto.
+  Esempio (racchiudere tra virgolette i campi con virgole, virgolette o
+  a capo e raddoppiare le virgolette interne):
+
+  ```csv
+  name,age,note
+  Alice,30,"one, ""two""
+  three"
+  Bob,25,
+  ```
+
 - JSON: null, booleani, interi con segno a 64 bit (e senza segno fino a 2^64-1), numeri finiti in virgola
   mobile, stringhe, array e oggetti. A differenza di YAML, le chiavi duplicate
   di un oggetto non sono un errore: prevale l'ultimo valore e i duplicati nei
