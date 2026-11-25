@@ -155,6 +155,16 @@ peuvent pas être définies dans ces valeurs, un TOML imbriqué deux fois plus
 profondément est rejeté et Save refuse les valeurs au-delà de la limite. Les
 alias YAML se développant en plus de 1 000 000 de valeurs au total sont des
 erreurs.
+.PP
+Exemple CSV (mettre entre guillemets les champs contenant virgules,
+guillemets ou sauts de ligne, et doubler les guillemets internes) :
+.PP
+.nf
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+.fi
 .SH EXEMPLE
 .nf
 #include <cppdatasetutil.h>

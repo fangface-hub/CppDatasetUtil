@@ -141,6 +141,15 @@ CRT 类型（/MD 或 /MT，Debug 或 Release）和 _ITERATOR_DEBUG_LEVEL 必须�
 Parse 转换。这些值内部不能定义 YAML 锚点，嵌套超过限制两倍的 TOML 会被拒绝，Save 也会拒绝超过限制的值。总共展开为超过
 1,000,000 个值的 YAML 别名属于错误。
 </p>
+<p>
+CSV 示例（包含逗号、引号或换行的字段需用 " 括起，内部的 " 写作 ""）：
+</p>
+<pre>
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+</pre>
 <h2>示例</h2>
 <pre>
 #include &lt;cppdatasetutil.h&gt;

@@ -174,6 +174,16 @@ values, TOML nested more than twice the limit is rejected, and Save rejects
 values nested beyond the limit. YAML aliases that expand to more than
 1,000,000 values in total are errors.
 </p>
+<p>
+CSV example (quote fields containing commas, quotes, or line breaks, and
+double embedded quotes):
+</p>
+<pre>
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+</pre>
 <h2>EXAMPLE</h2>
 <pre>
 #include &lt;cppdatasetutil.h&gt;

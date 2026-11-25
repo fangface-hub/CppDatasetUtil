@@ -154,6 +154,16 @@ zurückwandelt. YAML-Anker können innerhalb dieser Werte nicht definiert
 werden, TOML mit mehr als der doppelten Tiefe wird abgelehnt, und Save weist
 Werte über dem Limit zurück. YAML-Aliase, die insgesamt zu mehr als
 1.000.000 Werten expandieren, sind Fehler.
+.PP
+CSV-Beispiel (Felder mit Kommas, Anführungszeichen oder Zeilenumbrüchen in
+Anführungszeichen setzen, eingebettete Anführungszeichen verdoppeln):
+.PP
+.nf
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+.fi
 .SH BEISPIEL
 .nf
 #include <cppdatasetutil.h>

@@ -151,6 +151,16 @@ testo JSON compatto, che Parse riconverte. Le ancore YAML non possono essere
 definite in questi valori, un TOML annidato oltre il doppio del limite è
 rifiutato e Save rifiuta i valori oltre il limite. Gli alias YAML che si
 espandono in più di 1.000.000 di valori in totale sono errori.
+.PP
+Esempio CSV (racchiudere tra virgolette i campi con virgole, virgolette o
+a capo e raddoppiare le virgolette interne):
+.PP
+.nf
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+.fi
 .SH ESEMPIO
 .nf
 #include <cppdatasetutil.h>

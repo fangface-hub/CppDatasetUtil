@@ -184,6 +184,16 @@ definite in questi valori, un TOML annidato oltre il doppio del limite è
 rifiutato e Save rifiuta i valori oltre il limite. Gli alias YAML che si
 espandono in più di 1.000.000 di valori in totale sono errori.
 </p>
+<p>
+Esempio CSV (racchiudere tra virgolette i campi con virgole, virgolette o
+a capo e raddoppiare le virgolette interne):
+</p>
+<pre>
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+</pre>
 <h2>ESEMPIO</h2>
 <pre>
 #include &lt;cppdatasetutil.h&gt;

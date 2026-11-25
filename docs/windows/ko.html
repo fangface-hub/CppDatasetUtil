@@ -155,6 +155,15 @@ Dataset::kMaxNestingDepth(256)보다 깊게 중첩된 맵과 배열은 트리로
 넘는 TOML은 거부되며, Save는 한도를 넘는 값을 거부합니다. 전체 1,000,000개를 넘는 값으로 확장되는 YAML 별칭은
 오류입니다.
 </p>
+<p>
+CSV 예시(쉼표, 따옴표, 줄 바꿈이 있는 필드는 "로 감싸고 내부의 "는 ""로 씁니다):
+</p>
+<pre>
+name,age,note
+Alice,30,"one, ""two""
+three"
+Bob,25,
+</pre>
 <h2>예제</h2>
 <pre>
 #include &lt;cppdatasetutil.h&gt;
